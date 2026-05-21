@@ -1,0 +1,73 @@
+{
+  "name": "nuvo-commit",
+  "displayName": "Nuvo Commit AI",
+  "description": "Write commits, not novels. Local-first AI commit message generator.",
+  "version": "0.1.0",
+  "publisher": "nuvocode",
+  "engines": {
+    "vscode": "^1.85.0",
+    "node": ">=18"
+  },
+  "categories": ["SCM Providers", "Machine Learning"],
+  "keywords": ["git", "commit", "ai", "ollama", "local-first"],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "nuvoCommit.generate",
+        "title": "Nuvo Commit: Generate Commit Message"
+      }
+    ],
+    "configuration": {
+      "title": "Nuvo Commit AI",
+      "properties": {
+        "nuvoCommit.provider": {
+          "type": "string",
+          "enum": ["ollama"],
+          "default": "ollama",
+          "description": "AI provider used to generate commit messages."
+        },
+        "nuvoCommit.model": {
+          "type": "string",
+          "default": "qwen3:4b",
+          "description": "Model identifier passed to the provider."
+        },
+        "nuvoCommit.ollamaEndpoint": {
+          "type": "string",
+          "default": "http://localhost:11434/api/generate",
+          "description": "Ollama generate endpoint URL."
+        },
+        "nuvoCommit.maxDiffChars": {
+          "type": "number",
+          "default": 12000,
+          "minimum": 1000,
+          "description": "Maximum diff characters sent to the model. Diffs above this are truncated."
+        },
+        "nuvoCommit.autoCommit": {
+          "type": "boolean",
+          "default": false,
+          "description": "Run `git commit -m <message>` automatically after the user accepts the suggestion."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile",
+    "test": "vscode-test",
+    "test:unit": "jest",
+    "test:coverage": "jest --coverage"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/test-cli": "^0.0.9",
+    "@vscode/test-electron": "^2.3.9",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "typescript": "^5.4.0"
+  }
+}
