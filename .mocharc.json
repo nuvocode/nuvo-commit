@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json.schemastore.org/mocharc.json",
+  "ui": "tdd",
+  "watch-files": ["src/**/*.ts"],
+  "spec": "out/test/**/*.test.js"
+}

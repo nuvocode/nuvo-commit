@@ -2,3 +2,20 @@ node_modules/
 out/
 *.vsix
 .DS_Store
+
+# Coverage
+coverage/
+
+# Test artifacts
+*.test.js
+*.test.js.map
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+Thumbs.db
+
+# IDE
+.vscode-test/
