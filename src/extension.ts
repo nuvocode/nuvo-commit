@@ -2,7 +2,7 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import * as vscode from "vscode";
 
-import { getStagedDiff, GitError } from "./git/diff";
+import { getStagedDiff, getWorkingDiff, GitError } from "./git/diff";
 import { OllamaProvider } from "./providers/OllamaProvider";
 import { Provider, ProviderError } from "./providers/Provider";
 import { optimizeDiff } from "./utils/optimizeDiff";
@@ -147,17 +147,30 @@ async function runCommand(): Promise<void> {
     return;
   }
 
+  // If no staged changes, check for working directory changes
+  let useWorkingDir = false;
   if (staged.files.length === 0) {
-    vscode.window.showWarningMessage(
-      "Nuvo Commit: no staged changes. Stage files and try again.",
-    );
-    return;
+    try {
+      const working = await getWorkingDiff(cwd);
+      if (working.files.length === 0) {
+        vscode.window.showWarningMessage(
+          "Nuvo Commit: no changes detected. Stage files or add unstaged changes to proceed.",
+        );
+        return;
+      }
+      staged = working;
+      useWorkingDir = true;
+    } catch (err) {
+      const msg = err instanceof GitError ? err.message : String(err);
+      vscode.window.showErrorMessage(`Nuvo Commit: ${msg}`);
+      return;
+    }
   }
 
   const optimized = optimizeDiff(staged.diff, settings.maxDiffChars);
   if (optimized.includedFiles.length === 0) {
     vscode.window.showWarningMessage(
-      "Nuvo Commit: all staged files are ignored (lock/generated/binary).",
+      `Nuvo Commit: all ${useWorkingDir ? "unstaged" : "staged"} files are ignored (lock/generated/binary).`,
     );
     return;
   }

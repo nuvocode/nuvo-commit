@@ -16,9 +16,19 @@
     "commands": [
       {
         "command": "nuvoCommit.generate",
-        "title": "Nuvo Commit: Generate Commit Message"
+        "title": "Nuvo Commit: Generate Commit Message",
+        "icon": "$(sparkle)"
       }
     ],
+    "menus": {
+      "scm/title": [
+        {
+          "command": "nuvoCommit.generate",
+          "when": "scmProvider == git",
+          "group": "navigation"
+        }
+      ]
+    },
     "configuration": {
       "title": "Nuvo Commit AI",
       "properties": {

@@ -8,6 +8,11 @@ export interface StagedDiff {
   files: string[];
 }
 
+export interface WorkingDiff {
+  diff: string;
+  files: string[];
+}
+
 export class GitError extends Error {
   constructor(message: string, public readonly cause?: unknown) {
     super(message);
@@ -45,6 +50,25 @@ export async function getStagedDiff(cwd: string): Promise<StagedDiff> {
     ["diff", "--cached", "--no-ext-diff", "--unified=3"],
     cwd,
   );
+
+  return { diff, files };
+}
+
+export async function getWorkingDiff(cwd: string): Promise<WorkingDiff> {
+  const filesOut = await git(
+    ["diff", "--name-only", "--diff-filter=ACMRTUXB"],
+    cwd,
+  );
+  const files = filesOut
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  if (files.length === 0) {
+    return { diff: "", files: [] };
+  }
+
+  const diff = await git(["diff", "--no-ext-diff", "--unified=3"], cwd);
 
   return { diff, files };
 }
