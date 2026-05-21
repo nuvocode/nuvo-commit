@@ -16,6 +16,7 @@ interface Settings {
   ollamaEndpoint: string;
   maxDiffChars: number;
   autoCommit: boolean;
+  autoAccept: boolean;
 }
 
 function readSettings(): Settings {
@@ -29,6 +30,7 @@ function readSettings(): Settings {
     ),
     maxDiffChars: cfg.get<number>("maxDiffChars", 12000),
     autoCommit: cfg.get<boolean>("autoCommit", false),
+    autoAccept: cfg.get<boolean>("autoAccept", true),
   };
 }
 
@@ -106,15 +108,11 @@ async function applyMessage(
       ?? api.repositories[0];
     if (repo) {
       repo.inputBox.value = message;
-      vscode.window.showInformationMessage("Commit message set in SCM input.");
       return;
     }
   }
 
   await vscode.env.clipboard.writeText(message);
-  vscode.window.showInformationMessage(
-    "Commit message copied to clipboard (Git extension not available).",
-  );
 }
 
 interface GitRepository {
@@ -176,40 +174,71 @@ async function runCommand(): Promise<void> {
   }
 
   let message: string;
-  while (true) {
-    try {
-      message = await vscode.window.withProgress(
-        {
-          location: vscode.ProgressLocation.Notification,
-          title: `Nuvo Commit: generating with ${settings.model}…`,
-          cancellable: false,
-        },
-        () => generateOnce(provider, optimized.diff),
-      );
-    } catch (err) {
-      const msg = err instanceof ProviderError ? err.message : String(err);
-      vscode.window.showErrorMessage(`Nuvo Commit: ${msg}`);
-      return;
-    }
-
-    const action = await pickAction(message);
-    if (action === "accept") break;
-    if (action === "cancel") return;
-    if (action === "edit") {
-      const edited = await editMessage(message);
-      if (!edited) return;
-      message = sanitizeCommitMessage(edited);
-      break;
-    }
-    // regenerate -> loop
+  try {
+    message = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Nuvo Commit: generating with ${settings.model}…`,
+        cancellable: false,
+      },
+      () => generateOnce(provider, optimized.diff),
+    );
+  } catch (err) {
+    const msg = err instanceof ProviderError ? err.message : String(err);
+    vscode.window.showErrorMessage(`Nuvo Commit: ${msg}`);
+    return;
   }
 
-  await applyMessage(message, cwd, settings.autoCommit);
+  // Auto-accept: skip dialog and directly apply the message
+  if (settings.autoAccept) {
+    await applyMessage(message, cwd, settings.autoCommit);
+    return;
+  }
+
+  // Show dialog for manual approval
+  while (true) {
+    const action = await pickAction(message);
+    switch (action) {
+      case "accept":
+        await applyMessage(message, cwd, settings.autoCommit);
+        return;
+      case "regenerate":
+        try {
+          message = await vscode.window.withProgress(
+            {
+              location: vscode.ProgressLocation.Notification,
+              title: `Nuvo Commit: regenerating with ${settings.model}…`,
+              cancellable: false,
+            },
+            () => generateOnce(provider, optimized.diff),
+          );
+        } catch (err) {
+          const msg = err instanceof ProviderError ? err.message : String(err);
+          vscode.window.showErrorMessage(`Nuvo Commit: ${msg}`);
+          return;
+        }
+        break;
+      case "edit":
+        const edited = await editMessage(message);
+        if (edited) {
+          message = edited;
+        }
+        break;
+      case "cancel":
+        return;
+    }
+  }
 }
 
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("nuvoCommit.generate", runCommand),
+    vscode.commands.registerCommand("nuvoCommit.settings", () => {
+      vscode.commands.executeCommand(
+        "workbench.action.openSettings",
+        "nuvoCommit",
+      );
+    }),
   );
 }
 

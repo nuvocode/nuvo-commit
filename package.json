@@ -18,6 +18,10 @@
         "command": "nuvoCommit.generate",
         "title": "Nuvo Commit: Generate Commit Message",
         "icon": "$(sparkle)"
+      },
+      {
+        "command": "nuvoCommit.settings",
+        "title": "Nuvo Commit: Settings"
       }
     ],
     "menus": {
@@ -68,6 +72,11 @@
           "type": "boolean",
           "default": false,
           "description": "Run `git commit -m <message>` automatically after the user accepts the suggestion."
+        },
+        "nuvoCommit.autoAccept": {
+          "type": "boolean",
+          "default": true,
+          "description": "Skip the approval dialog and directly fill the commit message input. Disable to see the approval dialog."
         }
       }
     }
