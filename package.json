@@ -35,13 +35,23 @@
         "nuvoCommit.provider": {
           "type": "string",
           "enum": ["ollama"],
+          "enumDescriptions": [
+            "Ollama - Local AI provider for running models locally"
+          ],
           "default": "ollama",
           "description": "AI provider used to generate commit messages."
         },
         "nuvoCommit.model": {
           "type": "string",
           "default": "qwen3:4b",
-          "description": "Model identifier passed to the provider."
+          "examples": [
+            "qwen3:4b",
+            "llama3.2:3b",
+            "mistral:7b",
+            "codellama:7b",
+            "deepseek-coder:6.7b"
+          ],
+          "description": "Model identifier passed to the provider. Common models: qwen3:4b, llama3.2:3b, mistral:7b."
         },
         "nuvoCommit.ollamaEndpoint": {
           "type": "string",
