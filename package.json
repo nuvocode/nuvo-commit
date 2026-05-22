@@ -1,9 +1,10 @@
 {
   "name": "nuvo-commit",
-  "displayName": "Nuvo Commit AI",
+  "displayName": "Nuvo Commit",
   "description": "Write commits, not novels. Local-first AI commit message generator.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "nuvocode",
+  "icon": "images/logo.svg",
   "engines": {
     "vscode": "^1.85.0",
     "node": ">=18"
@@ -34,7 +35,7 @@
       ]
     },
     "configuration": {
-      "title": "Nuvo Commit AI",
+      "title": "Nuvo Commit",
       "properties": {
         "nuvoCommit.provider": {
           "type": "string",
