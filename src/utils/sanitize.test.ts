@@ -35,7 +35,7 @@ describe('sanitizeCommitMessage', () => {
 
   it('should handle empty input', () => {
     expect(sanitizeCommitMessage('')).toBe('chore: update staged changes');
-    expect(sanitizeCommitMessage(null as any)).toBe('chore: update staged changes');
+    expect(sanitizeCommitMessage(null as unknown as string)).toBe('chore: update staged changes');
   });
 
   it('should remove bullet points', () => {

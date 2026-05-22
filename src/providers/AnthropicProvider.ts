@@ -1,5 +1,8 @@
 import { buildCommitPrompt } from "../prompt/commitPrompt";
-import { Provider, ProviderError, APIProviderConfig } from "./Provider";
+import { Provider, ProviderConfig, ProviderError } from "./Provider";
+import { fetchWithTimeout } from "./http";
+
+const DEFAULT_ENDPOINT = "https://api.anthropic.com/v1/messages";
 
 interface AnthropicResponse {
   content: Array<{
@@ -11,43 +14,41 @@ interface AnthropicResponse {
   };
 }
 
-export interface AnthropicOptions extends APIProviderConfig {
-  apiKey: string;
-  endpoint?: string;
-  model: string;
-}
-
 export class AnthropicProvider implements Provider {
   readonly name = "anthropic";
-  private readonly defaultEndpoint = "https://api.anthropic.com/v1/messages";
 
-  constructor(private readonly opts: AnthropicOptions) {}
+  constructor(private readonly opts: ProviderConfig) {}
 
   async generateCommitMessage(diff: string): Promise<string> {
     const prompt = buildCommitPrompt(diff);
-    const endpoint = this.opts.endpoint ?? this.defaultEndpoint;
+    const endpoint = this.opts.endpoint || DEFAULT_ENDPOINT;
 
     let res: Response;
     try {
-      res = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": this.opts.apiKey,
-          "anthropic-version": "2023-06-01",
+      res = await fetchWithTimeout(
+        endpoint,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": this.opts.apiKey ?? "",
+            "anthropic-version": "2023-06-01",
+          },
+          body: JSON.stringify({
+            model: this.opts.model,
+            max_tokens: 150,
+            messages: [
+              {
+                role: "user",
+                content: prompt,
+              },
+            ],
+          }),
         },
-        body: JSON.stringify({
-          model: this.opts.model,
-          max_tokens: 150,
-          messages: [
-            {
-              role: "user",
-              content: prompt,
-            },
-          ],
-        }),
-      });
+        this.opts.timeoutMs,
+      );
     } catch (err) {
+      if (err instanceof ProviderError) throw err;
       throw new ProviderError(
         `Cannot reach Anthropic API at ${endpoint}. Check your connection and API key.`,
         err,

@@ -1,5 +1,8 @@
 import { buildCommitPrompt } from "../prompt/commitPrompt";
-import { Provider, ProviderError, APIProviderConfig } from "./Provider";
+import { Provider, ProviderConfig, ProviderError } from "./Provider";
+import { fetchWithTimeout } from "./http";
+
+const DEFAULT_ENDPOINT = "https://api.openai.com/v1/chat/completions";
 
 interface OpenAIChatResponse {
   choices: Array<{
@@ -12,47 +15,46 @@ interface OpenAIChatResponse {
   };
 }
 
-export interface OpenAIOptions extends APIProviderConfig {
-  apiKey: string;
-  endpoint?: string;
-  model: string;
-}
-
 export class OpenAIProvider implements Provider {
   readonly name = "openai";
-  private readonly defaultEndpoint = "https://api.openai.com/v1/chat/completions";
 
-  constructor(private readonly opts: OpenAIOptions) {}
+  constructor(private readonly opts: ProviderConfig) {}
 
   async generateCommitMessage(diff: string): Promise<string> {
     const prompt = buildCommitPrompt(diff);
-    const endpoint = this.opts.endpoint ?? this.defaultEndpoint;
+    const endpoint = this.opts.endpoint || DEFAULT_ENDPOINT;
 
     let res: Response;
     try {
-      res = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this.opts.apiKey}`,
+      res = await fetchWithTimeout(
+        endpoint,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.opts.apiKey ?? ""}`,
+          },
+          body: JSON.stringify({
+            model: this.opts.model,
+            messages: [
+              {
+                role: "system",
+                content:
+                  "You are a helpful assistant that generates concise git commit messages.",
+              },
+              {
+                role: "user",
+                content: prompt,
+              },
+            ],
+            temperature: 0.2,
+            max_tokens: 150,
+          }),
         },
-        body: JSON.stringify({
-          model: this.opts.model,
-          messages: [
-            {
-              role: "system",
-              content: "You are a helpful assistant that generates concise git commit messages.",
-            },
-            {
-              role: "user",
-              content: prompt,
-            },
-          ],
-          temperature: 0.2,
-          max_tokens: 150,
-        }),
-      });
+        this.opts.timeoutMs,
+      );
     } catch (err) {
+      if (err instanceof ProviderError) throw err;
       throw new ProviderError(
         `Cannot reach OpenAI API at ${endpoint}. Check your connection and API key.`,
         err,
@@ -86,12 +88,6 @@ export class OpenAIProvider implements Provider {
 
   async listModels(): Promise<string[]> {
     // Common OpenAI models - static list
-    return [
-      "gpt-4o",
-      "gpt-4o-mini",
-      "gpt-4-turbo",
-      "gpt-4",
-      "gpt-3.5-turbo",
-    ];
+    return ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo"];
   }
 }
