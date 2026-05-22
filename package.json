@@ -4,7 +4,7 @@
   "description": "Write commits, not novels. Local-first AI commit message generator.",
   "version": "0.1.1",
   "publisher": "nuvocode",
-  "icon": "images/logo.svg",
+  "icon": "images/logo.png",
   "engines": {
     "vscode": "^1.85.0",
     "node": ">=18"
