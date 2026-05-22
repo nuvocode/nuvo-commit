@@ -1,9 +1,10 @@
 {
   "name": "nuvo-commit",
-  "displayName": "Nuvo Commit AI",
+  "displayName": "Nuvo Commit",
   "description": "Write commits, not novels. Local-first AI commit message generator.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "nuvocode",
+  "icon": "images/logo.png",
   "engines": {
     "vscode": "^1.85.0",
     "node": ">=18"
@@ -16,22 +17,46 @@
     "commands": [
       {
         "command": "nuvoCommit.generate",
-        "title": "Nuvo Commit: Generate Commit Message"
+        "title": "Nuvo Commit: Generate Commit Message",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "nuvoCommit.settings",
+        "title": "Nuvo Commit: Settings"
       }
     ],
+    "menus": {
+      "scm/title": [
+        {
+          "command": "nuvoCommit.generate",
+          "when": "scmProvider == git",
+          "group": "navigation"
+        }
+      ]
+    },
     "configuration": {
-      "title": "Nuvo Commit AI",
+      "title": "Nuvo Commit",
       "properties": {
         "nuvoCommit.provider": {
           "type": "string",
           "enum": ["ollama"],
+          "enumDescriptions": [
+            "Ollama - Local AI provider for running models locally"
+          ],
           "default": "ollama",
           "description": "AI provider used to generate commit messages."
         },
         "nuvoCommit.model": {
           "type": "string",
           "default": "qwen3:4b",
-          "description": "Model identifier passed to the provider."
+          "examples": [
+            "qwen3:4b",
+            "llama3.2:3b",
+            "mistral:7b",
+            "codellama:7b",
+            "deepseek-coder:6.7b"
+          ],
+          "description": "Model identifier passed to the provider. Common models: qwen3:4b, llama3.2:3b, mistral:7b."
         },
         "nuvoCommit.ollamaEndpoint": {
           "type": "string",
@@ -48,6 +73,11 @@
           "type": "boolean",
           "default": false,
           "description": "Run `git commit -m <message>` automatically after the user accepts the suggestion."
+        },
+        "nuvoCommit.autoAccept": {
+          "type": "boolean",
+          "default": true,
+          "description": "Skip the approval dialog and directly fill the commit message input. Disable to see the approval dialog."
         }
       }
     }
@@ -69,5 +99,10 @@
     "jest": "^29.7.0",
     "ts-jest": "^29.1.2",
     "typescript": "^5.4.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nuvocode/nuvo-commit.git"
+  },
+  "license": "MIT"
 }

@@ -1,0 +1,65 @@
+name: Publish VS Code Extension
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  # Wait for other CI workflows to complete
+  wait-for-ci:
+    name: Wait for CI to Complete
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for test workflow
+        uses: lewagon/wait-on-check-action@v1.3.4
+        with:
+          ref: ${{ github.sha }}
+          check-name: 'Test'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 10
+
+      - name: Wait for build workflow
+        uses: lewagon/wait-on-check-action@v1.3.4
+        with:
+          ref: ${{ github.sha }}
+          check-name: 'Build'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 10
+
+  # Publish to VS Code Marketplace
+  publish:
+    name: Publish Extension
+    runs-on: ubuntu-latest
+    needs: wait-for-ci
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Compile Extension
+        run: npm run compile
+
+      - name: Install vsce
+        run: npm install -g @vscode/vsce
+
+      - name: Publish to VS Code Marketplace
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: vsce publish --no-yarn
+        if: env.VSCE_PAT != ''
+
+      - name: Publish to Open VSX Registry
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: vsce publish --no-yarn --target linux-x64 --packagedExtensionPath extension.vsix
+        if: env.OVSX_PAT != ''
