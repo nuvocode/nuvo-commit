@@ -21,11 +21,18 @@ describe('sanitizeCommitMessage', () => {
     expect(sanitizeCommitMessage(input)).toBe('fix: remove bold text');
   });
 
-  it('should truncate to 72 characters', () => {
-    const input = 'feat: this is a very long commit message that exceeds the maximum allowed length of 72 characters and should be truncated';
+  it('should truncate to 50 characters at word boundary', () => {
+    const input = 'feat: this is a very long commit message that exceeds the maximum allowed length of 50 characters and should be truncated';
     const result = sanitizeCommitMessage(input);
-    expect(result.length).toBeLessThanOrEqual(72);
+    expect(result.length).toBeLessThanOrEqual(50);
     expect(result).toMatch(/^feat:/);
+    // Should not cut word in half
+    expect(result).not.toMatch(/\s$/);
+  });
+
+  it('should preserve short commit messages', () => {
+    const input = 'fix: resolve bug';
+    expect(sanitizeCommitMessage(input)).toBe('fix: resolve bug');
   });
 
   it('should remove trailing punctuation', () => {

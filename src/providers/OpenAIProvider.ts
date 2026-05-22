@@ -1,5 +1,6 @@
 import { buildCommitPrompt } from "../prompt/commitPrompt";
 import { Provider, ProviderConfig, ProviderError } from "./Provider";
+import { sanitizeCommitMessage } from "../utils/sanitize";
 import { fetchWithTimeout } from "./http";
 
 const DEFAULT_ENDPOINT = "https://api.openai.com/v1/chat/completions";
@@ -83,7 +84,7 @@ export class OpenAIProvider implements Provider {
       throw new ProviderError("No response from OpenAI");
     }
 
-    return data.choices[0].message.content.trim();
+    return sanitizeCommitMessage(data.choices[0].message.content.trim());
   }
 
   async listModels(): Promise<string[]> {

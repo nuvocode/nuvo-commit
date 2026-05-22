@@ -1,5 +1,6 @@
 import { buildCommitPrompt } from "../prompt/commitPrompt";
 import { Provider, ProviderConfig, ProviderError } from "./Provider";
+import { sanitizeCommitMessage } from "../utils/sanitize";
 import { fetchWithTimeout } from "./http";
 
 const DEFAULT_ENDPOINT = "http://localhost:11434/api/generate";
@@ -47,7 +48,7 @@ export class OllamaProvider implements Provider {
             options: {
               temperature: 0.2,
               top_p: 0.9,
-              num_predict: 80,
+              num_predict: 50,
               stop: ["\n\n", "```", "Here", "This commit"],
             },
           }),
@@ -80,7 +81,7 @@ export class OllamaProvider implements Provider {
       throw new ProviderError(`Ollama error: ${data.error}`);
     }
 
-    return stripThinking(data.response ?? "");
+    return sanitizeCommitMessage(stripThinking(data.response ?? ""));
   }
 
   async listModels(): Promise<string[]> {

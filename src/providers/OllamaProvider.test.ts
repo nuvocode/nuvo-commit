@@ -79,7 +79,8 @@ describe('OllamaProvider', () => {
     const diff = 'diff --git a/src/index.ts b/src/index.ts';
 
     const result = await provider.generateCommitMessage(diff);
-    expect(result).toBe('');
+    // Empty response is sanitized to default fallback
+    expect(result).toBe('chore: update staged changes');
   });
 
   it('should send correct request body', async () => {
@@ -103,7 +104,7 @@ describe('OllamaProvider', () => {
     expect(body.options).toEqual({
       temperature: 0.2,
       top_p: 0.9,
-      num_predict: 80,
+      num_predict: 50,
       stop: ['\n\n', '```', 'Here', 'This commit'],
     });
   });

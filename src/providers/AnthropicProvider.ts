@@ -1,5 +1,6 @@
 import { buildCommitPrompt } from "../prompt/commitPrompt";
 import { Provider, ProviderConfig, ProviderError } from "./Provider";
+import { sanitizeCommitMessage } from "../utils/sanitize";
 import { fetchWithTimeout } from "./http";
 
 const DEFAULT_ENDPOINT = "https://api.anthropic.com/v1/messages";
@@ -77,7 +78,7 @@ export class AnthropicProvider implements Provider {
       throw new ProviderError("No response from Anthropic");
     }
 
-    return data.content[0].text.trim();
+    return sanitizeCommitMessage(data.content[0].text.trim());
   }
 
   async listModels(): Promise<string[]> {
