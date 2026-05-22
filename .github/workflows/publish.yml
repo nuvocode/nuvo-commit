@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  # Wait for other CI workflows to complete
+  # Wait for the Tests workflow to pass before publishing
   wait-for-ci:
     name: Wait for CI to Complete
     runs-on: ubuntu-latest
@@ -16,15 +16,7 @@ jobs:
         uses: lewagon/wait-on-check-action@v1.3.4
         with:
           ref: ${{ github.sha }}
-          check-name: 'Test'
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          wait-interval: 10
-
-      - name: Wait for build workflow
-        uses: lewagon/wait-on-check-action@v1.3.4
-        with:
-          ref: ${{ github.sha }}
-          check-name: 'Build'
+          check-name: 'test'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           wait-interval: 10
 
@@ -46,11 +38,17 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      - name: Lint
+        run: npm run lint
+
+      - name: Run Unit Tests
+        run: npm run test:unit
+
       - name: Compile Extension
         run: npm run compile
 
-      - name: Install vsce
-        run: npm install -g @vscode/vsce
+      - name: Install vsce and ovsx
+        run: npm install -g @vscode/vsce ovsx
 
       - name: Publish to VS Code Marketplace
         env:
@@ -61,5 +59,5 @@ jobs:
       - name: Publish to Open VSX Registry
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
-        run: vsce publish --no-yarn --target linux-x64 --packagedExtensionPath extension.vsix
+        run: ovsx publish --pat "$OVSX_PAT"
         if: env.OVSX_PAT != ''
