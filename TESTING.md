@@ -1,93 +1,72 @@
-# 🧪 Nuvo Commit Test Rehberi
+# 🧪 Nuvo Commit Testing Guide
 
-## ✅ Unit Testler (CI'da çalışıyor)
+## ✅ Unit Tests (Runs in CI)
 
 ```bash
-# Tüm unit testler
+# All unit tests
 npm run test:unit
 
-# Coverage raporu ile
+# With coverage report
 npm run test:coverage
 
-# Tek bir test dosyası
+# Single test file
 npx jest src/utils/sanitize.test.ts
 ```
 
-## 🚀 Extension Manuel Testi
+## 🚀 Manual Extension Testing
 
-### Yöntem 1: Debug Mode (Önerilen)
+### Method 1: Debug Mode (Recommended)
 
-1. **F5** tuşuna bas veya "Run and Debug" → "Run Extension"
-2. Yeni bir VS Code penceresi açılacak
-3. Test edilecek repo'da çalış:
+1. Press **F5** or "Run and Debug" → "Run Extension"
+2. A new VS Code window will open
+3. In your test repo, run:
    ```bash
    git add .
    ```
-4. **Command Palette** (`Cmd+Shift+P` / `Ctrl+Shift+P`)
-5. `Nuvo Commit: Generate Commit Message` yaz ve Enter
-6. Commit mesajı oluşturulacak
+4. Open **Command Palette** (`Cmd+Shift+P` / `Ctrl+Shift+P`)
+5. Type `Nuvo Commit: Generate Commit Message` and press Enter
+6. Commit message will be generated
 
-### Yöntem 2: VSIX Package
+### Method 2: VSIX Package
 
 ```bash
-# 1. Package oluştur
+# 1. Build package
 npm install -g @vscode/vsce
 vsce package
 
-# 2. VS Code'da yükle
-# - Extensions panelini aç (Cmd+Shift+X)
-# - ⋯ menüsünden "Install from VSIX"
-# - nuvo-commit-0.1.0.vsix dosyasını seç
+# 2. Install in VS Code
+# - Open Extensions panel (Cmd+Shift+X)
+# - Click ⋯ → "Install from VSIX"
+# - Select nuvo-commit-0.1.0.vsix
 ```
 
-### Yöntem 3: Extension Development Host
+## 📋 Test Scenarios
 
+### 1. Basic Commit Message
 ```bash
-# Terminal'de
-code --extensionDevelopmentPath=/Users/ozerozdas/Dev/companies/nuvocode/infra/nuvo-commit
-```
-
-## 📋 Test Senaryoları
-
-### 1. Temel Commit Mesajı
-```bash
-# Test repo oluştur
+# Create test repo
 mkdir test-repo && cd test-repo
 git init
 echo "console.log('hello')" > index.js
 git add index.js
 
-# Extension'ı çalıştır
-# Beklenen: "chore: add index.js" veya benzeri
+# Run extension
+# Expected: "chore: add index.js" or similar
 ```
 
-### 2. Farklı Değişiklik Tipleri
+### 2. Ollama Integration
 ```bash
-# Yeni dosya
-echo "new file" > new.txt
-git add new.txt
-
-# Değişiklik
-echo "modified" >> existing.txt
-git add existing.txt
-
-# Silme
-git rm old.txt
-```
-
-### 3. Ollama Entegrasyonu
-```bash
-# Ollama'nın çalıştığından emin ol
+# Ensure Ollama is running
 ollama serve
 
-# Model yüklü mü kontrol et
+# Check if model is loaded
 ollama list | grep qwen3
 
-# Değilse yükle
+# Install if needed
 ollama pull qwen3:4b
 ```
 
-### 4. Ayarlar Testi
+### 3. Settings Test
 VS Code Settings (`Cmd+,`):
 ```json
 {
@@ -98,6 +77,47 @@ VS Code Settings (`Cmd+,`):
   "nuvoCommit.autoCommit": false
 }
 ```
+
+## 🐛 Debugging
+
+### Extension Logs
+```bash
+# Open VS Code Output panel
+# Select "Extension Host"
+```
+
+### Common Issues
+
+**"Cannot reach Ollama"**
+```bash
+# Start Ollama
+ollama serve
+
+# Check if port is listening
+lsof -i :11434
+```
+
+**"No staged changes"**
+```bash
+# Stage changes
+git add .
+```
+
+**Extension not showing**
+```bash
+# Restart VS Code
+# Run: Developer: Reload Window (Cmd+Shift+P)
+```
+
+## 🎯 Quick Test Checklist
+
+- [ ] Unit tests passing (`npm run test:unit`)
+- [ ] Extension opens with F5
+- [ ] Command visible in Command Palette
+- [ ] Commit message generated from staged changes
+- [ ] Ollama responding
+- [ ] Settings working
+- [ ] Error handling informs user
 
 ## 🐛 Hata Ayıklama
 

@@ -1,5 +1,8 @@
 import { buildCommitPrompt } from "../prompt/commitPrompt";
-import { Provider, ProviderError } from "./Provider";
+import { Provider, ProviderConfig, ProviderError } from "./Provider";
+import { fetchWithTimeout } from "./http";
+
+const DEFAULT_ENDPOINT = "http://localhost:11434/api/generate";
 
 interface OllamaGenerateResponse {
   response: string;
@@ -7,39 +10,54 @@ interface OllamaGenerateResponse {
   error?: string;
 }
 
-export interface OllamaOptions {
-  endpoint: string;
+interface OllamaTag {
+  name: string;
   model: string;
+  modified_at: string;
+  size: number;
+}
+
+interface OllamaTagsResponse {
+  models: OllamaTag[];
 }
 
 export class OllamaProvider implements Provider {
   readonly name = "ollama";
 
-  constructor(private readonly opts: OllamaOptions) {}
+  constructor(private readonly opts: ProviderConfig) {}
+
+  private get endpoint(): string {
+    return this.opts.endpoint ?? DEFAULT_ENDPOINT;
+  }
 
   async generateCommitMessage(diff: string): Promise<string> {
     const prompt = buildCommitPrompt(diff);
 
     let res: Response;
     try {
-      res = await fetch(this.opts.endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: this.opts.model,
-          prompt,
-          stream: false,
-          options: {
-            temperature: 0.2,
-            top_p: 0.9,
-            num_predict: 80,
-            stop: ["\n\n", "```", "Here", "This commit"],
-          },
-        }),
-      });
+      res = await fetchWithTimeout(
+        this.endpoint,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: this.opts.model,
+            prompt,
+            stream: false,
+            options: {
+              temperature: 0.2,
+              top_p: 0.9,
+              num_predict: 80,
+              stop: ["\n\n", "```", "Here", "This commit"],
+            },
+          }),
+        },
+        this.opts.timeoutMs,
+      );
     } catch (err) {
+      if (err instanceof ProviderError) throw err;
       throw new ProviderError(
-        `Cannot reach Ollama at ${this.opts.endpoint}. Is it running?`,
+        `Cannot reach Ollama at ${this.endpoint}. Is it running?`,
         err,
       );
     }
@@ -63,6 +81,26 @@ export class OllamaProvider implements Provider {
     }
 
     return stripThinking(data.response ?? "");
+  }
+
+  async listModels(): Promise<string[]> {
+    try {
+      const baseUrl = this.endpoint.replace("/api/generate", "");
+      const res = await fetchWithTimeout(
+        `${baseUrl}/api/tags`,
+        {},
+        this.opts.timeoutMs,
+      );
+
+      if (!res.ok) {
+        return [];
+      }
+
+      const data = (await res.json()) as OllamaTagsResponse;
+      return data.models.map((m) => m.name).sort();
+    } catch {
+      return [];
+    }
   }
 }
 

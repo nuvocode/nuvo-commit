@@ -2,72 +2,59 @@
 
 ## GitHub Secrets Configuration
 
-Bu workflow'un çalışması için aşağıdaki GitHub secrets'ları ayarlamanız gerekiyor:
-
 ### 1. VS Code Marketplace (vsce) Personal Access Token
 
-1. https://marketplace.visualstudio.com/manage adresine gidin
-2. Sol menüden "Security" sekmesine tıklayın
-3. "New Personal Access Token" butonuna tıklayın
-4. Token'a bir isim verin (örn: `nuvo-commit-ci`)
-5. "All accessible organizations" seçin
-6. Oluşturulan token'ı kopyalayın
-7. GitHub repository'nizde:
+1. Go to https://marketplace.visualstudio.com/manage
+2. Click "Security" in the left menu
+3. Click "New Personal Access Token"
+4. Name it (e.g., `nuvo-commit-ci`)
+5. Select "All accessible organizations"
+6. Copy the generated token
+7. In your GitHub repository:
    - Settings → Secrets and variables → Actions
-   - "New repository secret" butonuna tıklayın
+   - Click "New repository secret"
    - Name: `VSCE_PAT`
-   - Value: Kopyaladığınız token
+   - Value: Paste the token
 
-### 2. Open VSX Registry Token (Opsiyonel)
+### 2. Open VSX Registry Token (Optional)
 
-Eğer Open VSX Registry'ye de publish etmek isterseniz:
-
-1. https://open-vsx.org/user-settings/tokens adresine gidin
-2. "Create New Token" butonuna tıklayın
-3. Token'ı kopyalayın
-4. GitHub repository'nizde:
+1. Go to https://open-vsx.org/user-settings/tokens
+2. Click "Create New Token"
+3. Copy the token
+4. In your GitHub repository:
    - Settings → Secrets and variables → Actions
-   - "New repository secret" butonuna tıklayın
+   - Click "New repository secret"
    - Name: `OVSX_PAT`
-   - Value: Kopyaladığınız token
+   - Value: Paste the token
 
-## Workflow Akışı
+## Workflow Flow
 
-1. **Master branch'e push** yapıldığında workflow tetiklenir
-2. **CI beklemesi**: Diğer test ve build workflow'larının tamamlanmasını bekler
-3. **Build**: Extension derlenir ve paketlanır
-4. **Publish**: VS Code Marketplace'e otomatik olarak publish edilir
+1. **Push to master** triggers the workflow
+2. **CI wait**: Waits for test and build workflows to complete
+3. **Build**: Compiles and packages the extension
+4. **Publish**: Automatically publishes to VS Code Marketplace
 
-## Manuel Tetikleme
+## Manual Trigger
 
-Workflow'u manuel olarak da tetikleyebilirsiniz:
 - GitHub repository → Actions → "Publish VS Code Extension" → "Run workflow"
 
-## Version Yönetimi
+## Version Management
 
-Her publish işleminden önce `package.json` dosyasındaki `version` alanını güncellemeyi unutmayın:
+Update the `version` field in `package.json` before each publish:
 
 ```json
 {
-  "version": "0.1.1" // Minor veya patch versiyonunu artırın
+  "version": "0.1.1" // Increment minor or patch version
 }
 ```
 
-## Gerekli CI Workflow'ları
-
-Bu workflow, aşağıdaki check'lerin tamamlanmasını bekler:
-- `Test` - Test workflow'u
-- `Build` - Build workflow'u
-
-Eğer farklı isimlerde CI workflow'larınız varsa, `publish.yml` dosyasındaki `check-name` değerlerini güncelleyin.
-
 ## Troubleshooting
 
-### Workflow CI'yi bekliyor ama CI yoksa
-- Eğer henüz CI workflow'ları oluşturmadıysanız, `wait-for-ci` job'unu kaldırabilirsiniz
-- Veya check-name değerlerini mevcut workflow'larınıza göre güncelleyin
+### Workflow waiting for CI but no CI exists
+- Remove the `wait-for-ci` job if you haven't created CI workflows yet
+- Or update `check-name` values to match your workflow names
 
-### Publish hatası alıyorsanız
-- VSCE_PAT secret'ının doğru ayarlandığından emin olun
-- Token'ın süresinin dolmadığını kontrol edin
-- Publisher adının (`nuvocode`) marketplace'te kayıtlı olduğunu doğrulayın
+### Publish errors
+- Verify VSCE_PAT secret is set correctly
+- Check token hasn't expired
+- Confirm publisher name (`nuvocode`) is registered on marketplace

@@ -2,7 +2,7 @@
   "name": "nuvo-commit",
   "displayName": "Nuvo Commit",
   "description": "Write commits, not novels. Local-first AI commit message generator.",
-  "version": "0.1.1",
+  "version": "1.0.0",
   "publisher": "nuvocode",
   "icon": "images/logo.png",
   "engines": {
@@ -10,7 +10,11 @@
     "node": ">=18"
   },
   "categories": ["SCM Providers", "Machine Learning"],
-  "keywords": ["git", "commit", "ai", "ollama", "local-first"],
+  "keywords": ["git", "commit", "ai", "ollama", "openai", "anthropic", "local-first", "multi-provider"],
+  "galleryBanner": {
+    "color": "#1e1e2e",
+    "theme": "dark"
+  },
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
@@ -23,6 +27,15 @@
       {
         "command": "nuvoCommit.settings",
         "title": "Nuvo Commit: Settings"
+      },
+      {
+        "command": "nuvoCommit.selectModel",
+        "title": "Nuvo Commit: Select Model",
+        "icon": "$(symbol-boolean)"
+      },
+      {
+        "command": "nuvoCommit.setApiKey",
+        "title": "Nuvo Commit: Set API Key"
       }
     ],
     "menus": {
@@ -37,55 +50,86 @@
     "configuration": {
       "title": "Nuvo Commit",
       "properties": {
-        "nuvoCommit.provider": {
-          "type": "string",
-          "enum": ["ollama"],
-          "enumDescriptions": [
-            "Ollama - Local AI provider for running models locally"
-          ],
-          "default": "ollama",
-          "description": "AI provider used to generate commit messages."
+        "nuvoCommit.autoAccept": {
+          "type": "boolean",
+          "default": true,
+          "order": 1,
+          "description": "Skip the approval dialog and directly fill the commit message input. Disable to see the approval dialog."
         },
-        "nuvoCommit.model": {
-          "type": "string",
-          "default": "qwen3:4b",
-          "examples": [
-            "qwen3:4b",
-            "llama3.2:3b",
-            "mistral:7b",
-            "codellama:7b",
-            "deepseek-coder:6.7b"
-          ],
-          "description": "Model identifier passed to the provider. Common models: qwen3:4b, llama3.2:3b, mistral:7b."
-        },
-        "nuvoCommit.ollamaEndpoint": {
-          "type": "string",
-          "default": "http://localhost:11434/api/generate",
-          "description": "Ollama generate endpoint URL."
+        "nuvoCommit.autoCommit": {
+          "type": "boolean",
+          "default": false,
+          "order": 2,
+          "description": "Run `git commit -m <message>` automatically after the user accepts the suggestion."
         },
         "nuvoCommit.maxDiffChars": {
           "type": "number",
           "default": 12000,
           "minimum": 1000,
+          "order": 3,
           "description": "Maximum diff characters sent to the model. Diffs above this are truncated."
         },
-        "nuvoCommit.autoCommit": {
-          "type": "boolean",
-          "default": false,
-          "description": "Run `git commit -m <message>` automatically after the user accepts the suggestion."
+        "nuvoCommit.provider": {
+          "type": "string",
+          "enum": ["ollama", "openai", "anthropic"],
+          "enumDescriptions": [
+            "Ollama - Local AI provider for running models locally",
+            "OpenAI - Cloud API provider (requires API key)",
+            "Anthropic - Cloud API provider (requires API key)"
+          ],
+          "default": "ollama",
+          "order": 4,
+          "description": "AI provider used to generate commit messages."
         },
-        "nuvoCommit.autoAccept": {
-          "type": "boolean",
-          "default": true,
-          "description": "Skip the approval dialog and directly fill the commit message input. Disable to see the approval dialog."
+        "nuvoCommit.endpoint": {
+          "type": "string",
+          "default": "http://localhost:11434/api/generate",
+          "order": 5,
+          "description": "API endpoint URL. For Ollama: http://localhost:11434/api/generate. For custom OpenAI/Anthropic endpoints, leave empty to use defaults."
+        },
+        "nuvoCommit.requestTimeoutMs": {
+          "type": "number",
+          "default": 30000,
+          "minimum": 1000,
+          "order": 6,
+          "description": "Maximum time in milliseconds to wait for a provider response before aborting the request."
+        },
+        "nuvoCommit.apiKey": {
+          "type": "string",
+          "default": "",
+          "order": 7,
+          "markdownDeprecationMessage": "**Deprecated:** API keys are now stored securely. Run the `Nuvo Commit: Set API Key` command instead. Any value here is migrated automatically and then cleared.",
+          "description": "Deprecated. Use the 'Nuvo Commit: Set API Key' command instead."
+        },
+        "nuvoCommit.model": {
+          "type": "string",
+          "default": "qwen3:4b",
+          "order": 8,
+          "examples": [
+            "qwen3:4b",
+            "llama3.2:3b",
+            "mistral:7b",
+            "codellama:7b",
+            "deepseek-coder:6.7b",
+            "gpt-4o",
+            "gpt-4o-mini",
+            "claude-sonnet-4-20250514",
+            "claude-3-5-sonnet-20241022"
+          ],
+          "description": "Model identifier passed to the provider. Use 'Nuvo Commit: Select Model' command to choose from available models or enter manually."
         }
       }
     }
   },
   "scripts": {
-    "compile": "tsc -p ./",
+    "clean": "node -e \"require('fs').rmSync('out',{recursive:true,force:true})\"",
+    "compile": "npm run clean && tsc -p ./",
     "watch": "tsc -watch -p ./",
     "vscode:prepublish": "npm run compile",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test": "vscode-test",
     "test:unit": "jest",
     "test:coverage": "jest --coverage"
@@ -94,15 +138,24 @@
     "@types/jest": "^29.5.12",
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
     "@vscode/test-cli": "^0.0.9",
     "@vscode/test-electron": "^2.3.9",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
     "jest": "^29.7.0",
+    "prettier": "^3.3.0",
     "ts-jest": "^29.1.2",
     "typescript": "^5.4.0"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/nuvocode/nuvo-commit.git"
+  },
+  "homepage": "https://github.com/nuvocode/nuvo-commit#readme",
+  "bugs": {
+    "url": "https://github.com/nuvocode/nuvo-commit/issues"
   },
   "license": "MIT"
 }
