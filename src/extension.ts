@@ -3,17 +3,25 @@ import { promisify } from "util";
 import * as vscode from "vscode";
 
 import { getStagedDiff, getWorkingDiff, GitError } from "./git/diff";
+import {
+  Provider,
+  ProviderConfig,
+  ProviderError,
+  ProviderRegistry,
+} from "./providers/Provider";
 import { OllamaProvider } from "./providers/OllamaProvider";
-import { Provider, ProviderError } from "./providers/Provider";
+import { OpenAIProvider } from "./providers/OpenAIProvider";
+import { AnthropicProvider } from "./providers/AnthropicProvider";
 import { optimizeDiff } from "./utils/optimizeDiff";
 import { sanitizeCommitMessage } from "./utils/sanitize";
 
 const execFileAsync = promisify(execFile);
 
 interface Settings {
-  provider: "ollama";
+  provider: string;
   model: string;
-  ollamaEndpoint: string;
+  endpoint: string;
+  apiKey: string;
   maxDiffChars: number;
   autoCommit: boolean;
   autoAccept: boolean;
@@ -22,12 +30,13 @@ interface Settings {
 function readSettings(): Settings {
   const cfg = vscode.workspace.getConfiguration("nuvoCommit");
   return {
-    provider: cfg.get<"ollama">("provider", "ollama"),
+    provider: cfg.get<string>("provider", "ollama"),
     model: cfg.get<string>("model", "qwen3:4b"),
-    ollamaEndpoint: cfg.get<string>(
-      "ollamaEndpoint",
+    endpoint: cfg.get<string>(
+      "endpoint",
       "http://localhost:11434/api/generate",
     ),
+    apiKey: cfg.get<string>("apiKey", ""),
     maxDiffChars: cfg.get<number>("maxDiffChars", 12000),
     autoCommit: cfg.get<boolean>("autoCommit", false),
     autoAccept: cfg.get<boolean>("autoAccept", true),
@@ -35,13 +44,26 @@ function readSettings(): Settings {
 }
 
 function buildProvider(settings: Settings): Provider {
-  switch (settings.provider) {
-    case "ollama":
-      return new OllamaProvider({
-        endpoint: settings.ollamaEndpoint,
-        model: settings.model,
-      });
+  const ProviderClass = ProviderRegistry.get(settings.provider);
+  
+  if (!ProviderClass) {
+    throw new ProviderError(`Unknown provider: ${settings.provider}`);
   }
+
+  // Build config based on provider type
+  const hasApiKey = settings.apiKey && settings.apiKey.length > 0;
+  const config: ProviderConfig = hasApiKey
+    ? {
+        model: settings.model,
+        apiKey: settings.apiKey,
+        ...(settings.endpoint ? { endpoint: settings.endpoint } : {}),
+      }
+    : {
+        model: settings.model,
+        endpoint: settings.endpoint || "http://localhost:11434/api/generate",
+      };
+
+  return new ProviderClass(config);
 }
 
 function getRepoRoot(): string | undefined {
@@ -230,7 +252,63 @@ async function runCommand(): Promise<void> {
   }
 }
 
+async function selectModel(): Promise<void> {
+  const settings = readSettings();
+  const provider = buildProvider(settings);
+
+  // Get available models from provider
+  let models: string[] = [];
+  if (provider.listModels) {
+    models = await provider.listModels();
+  }
+
+  // Add custom input option
+  const items: vscode.QuickPickItem[] = [];
+  
+  if (models.length > 0) {
+    items.push(
+      { label: "Available Models", kind: vscode.QuickPickItemKind.Separator },
+      ...models.map((m) => ({ label: m, description: "Click to select" })),
+    );
+  }
+
+  items.push(
+    { label: "Custom Model", kind: vscode.QuickPickItemKind.Separator },
+    { label: "$(pencil) Enter manually...", description: "Type a custom model name" },
+  );
+
+  const picked = await vscode.window.showQuickPick(items, {
+    placeHolder: `Select model for ${settings.provider}`,
+    ignoreFocusOut: true,
+  });
+
+  if (!picked) return;
+
+  let selectedModel: string;
+  if (picked.label === "$(pencil) Enter manually...") {
+    const input = await vscode.window.showInputBox({
+      prompt: "Enter model name",
+      placeHolder: "e.g., llama3.2:3b",
+      ignoreFocusOut: true,
+    });
+    if (!input) return;
+    selectedModel = input;
+  } else {
+    selectedModel = picked.label;
+  }
+
+  // Save to settings
+  const cfg = vscode.workspace.getConfiguration("nuvoCommit");
+  await cfg.update("model", selectedModel, vscode.ConfigurationTarget.Global);
+  vscode.window.showInformationMessage(`Model set to: ${selectedModel}`);
+}
+
 export function activate(context: vscode.ExtensionContext): void {
+  // Register providers
+  ProviderRegistry.register("ollama", OllamaProvider as any);
+  ProviderRegistry.register("openai", OpenAIProvider as any);
+  ProviderRegistry.register("anthropic", AnthropicProvider as any);
+
   context.subscriptions.push(
     vscode.commands.registerCommand("nuvoCommit.generate", runCommand),
     vscode.commands.registerCommand("nuvoCommit.settings", () => {
@@ -239,6 +317,7 @@ export function activate(context: vscode.ExtensionContext): void {
         "nuvoCommit",
       );
     }),
+    vscode.commands.registerCommand("nuvoCommit.selectModel", selectModel),
   );
 }
 

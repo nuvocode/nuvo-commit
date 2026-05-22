@@ -1,5 +1,5 @@
 import { buildCommitPrompt } from "../prompt/commitPrompt";
-import { Provider, ProviderError } from "./Provider";
+import { Provider, ProviderError, LocalProviderConfig } from "./Provider";
 
 interface OllamaGenerateResponse {
   response: string;
@@ -7,7 +7,18 @@ interface OllamaGenerateResponse {
   error?: string;
 }
 
-export interface OllamaOptions {
+interface OllamaTag {
+  name: string;
+  model: string;
+  modified_at: string;
+  size: number;
+}
+
+interface OllamaTagsResponse {
+  models: OllamaTag[];
+}
+
+export interface OllamaOptions extends LocalProviderConfig {
   endpoint: string;
   model: string;
 }
@@ -63,6 +74,22 @@ export class OllamaProvider implements Provider {
     }
 
     return stripThinking(data.response ?? "");
+  }
+
+  async listModels(): Promise<string[]> {
+    try {
+      const baseUrl = this.opts.endpoint.replace("/api/generate", "");
+      const res = await fetch(`${baseUrl}/api/tags`);
+      
+      if (!res.ok) {
+        return [];
+      }
+
+      const data = (await res.json()) as OllamaTagsResponse;
+      return data.models.map((m) => m.name).sort();
+    } catch (err) {
+      return [];
+    }
   }
 }
 

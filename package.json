@@ -10,7 +10,7 @@
     "node": ">=18"
   },
   "categories": ["SCM Providers", "Machine Learning"],
-  "keywords": ["git", "commit", "ai", "ollama", "local-first"],
+  "keywords": ["git", "commit", "ai", "ollama", "openai", "anthropic", "local-first", "multi-provider"],
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
@@ -23,6 +23,11 @@
       {
         "command": "nuvoCommit.settings",
         "title": "Nuvo Commit: Settings"
+      },
+      {
+        "command": "nuvoCommit.selectModel",
+        "title": "Nuvo Commit: Select Model",
+        "icon": "$(symbol-boolean)"
       }
     ],
     "menus": {
@@ -37,14 +42,42 @@
     "configuration": {
       "title": "Nuvo Commit",
       "properties": {
+        "nuvoCommit.autoAccept": {
+          "type": "boolean",
+          "default": true,
+          "description": "Skip the approval dialog and directly fill the commit message input. Disable to see the approval dialog."
+        },
+        "nuvoCommit.autoCommit": {
+          "type": "boolean",
+          "default": false,
+          "description": "Run `git commit -m <message>` automatically after the user accepts the suggestion."
+        },
+        "nuvoCommit.maxDiffChars": {
+          "type": "number",
+          "default": 12000,
+          "minimum": 1000,
+          "description": "Maximum diff characters sent to the model. Diffs above this are truncated."
+        },
         "nuvoCommit.provider": {
           "type": "string",
-          "enum": ["ollama"],
+          "enum": ["ollama", "openai", "anthropic"],
           "enumDescriptions": [
-            "Ollama - Local AI provider for running models locally"
+            "Ollama - Local AI provider for running models locally",
+            "OpenAI - Cloud API provider (requires API key)",
+            "Anthropic - Cloud API provider (requires API key)"
           ],
           "default": "ollama",
           "description": "AI provider used to generate commit messages."
+        },
+        "nuvoCommit.endpoint": {
+          "type": "string",
+          "default": "http://localhost:11434/api/generate",
+          "description": "API endpoint URL. For Ollama: http://localhost:11434/api/generate. For custom OpenAI/Anthropic endpoints, leave empty to use defaults."
+        },
+        "nuvoCommit.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API key for cloud providers (OpenAI, Anthropic). Leave empty for local providers like Ollama."
         },
         "nuvoCommit.model": {
           "type": "string",
@@ -54,30 +87,13 @@
             "llama3.2:3b",
             "mistral:7b",
             "codellama:7b",
-            "deepseek-coder:6.7b"
+            "deepseek-coder:6.7b",
+            "gpt-4o",
+            "gpt-4o-mini",
+            "claude-sonnet-4-20250514",
+            "claude-3-5-sonnet-20241022"
           ],
-          "description": "Model identifier passed to the provider. Common models: qwen3:4b, llama3.2:3b, mistral:7b."
-        },
-        "nuvoCommit.ollamaEndpoint": {
-          "type": "string",
-          "default": "http://localhost:11434/api/generate",
-          "description": "Ollama generate endpoint URL."
-        },
-        "nuvoCommit.maxDiffChars": {
-          "type": "number",
-          "default": 12000,
-          "minimum": 1000,
-          "description": "Maximum diff characters sent to the model. Diffs above this are truncated."
-        },
-        "nuvoCommit.autoCommit": {
-          "type": "boolean",
-          "default": false,
-          "description": "Run `git commit -m <message>` automatically after the user accepts the suggestion."
-        },
-        "nuvoCommit.autoAccept": {
-          "type": "boolean",
-          "default": true,
-          "description": "Skip the approval dialog and directly fill the commit message input. Disable to see the approval dialog."
+          "description": "Model identifier passed to the provider. Use 'Nuvo Commit: Select Model' command to choose from available models or enter manually."
         }
       }
     }
