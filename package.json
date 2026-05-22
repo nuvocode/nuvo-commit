@@ -45,17 +45,20 @@
         "nuvoCommit.autoAccept": {
           "type": "boolean",
           "default": true,
+          "order": 1,
           "description": "Skip the approval dialog and directly fill the commit message input. Disable to see the approval dialog."
         },
         "nuvoCommit.autoCommit": {
           "type": "boolean",
           "default": false,
+          "order": 2,
           "description": "Run `git commit -m <message>` automatically after the user accepts the suggestion."
         },
         "nuvoCommit.maxDiffChars": {
           "type": "number",
           "default": 12000,
           "minimum": 1000,
+          "order": 3,
           "description": "Maximum diff characters sent to the model. Diffs above this are truncated."
         },
         "nuvoCommit.provider": {
@@ -67,21 +70,25 @@
             "Anthropic - Cloud API provider (requires API key)"
           ],
           "default": "ollama",
+          "order": 4,
           "description": "AI provider used to generate commit messages."
         },
         "nuvoCommit.endpoint": {
           "type": "string",
           "default": "http://localhost:11434/api/generate",
+          "order": 5,
           "description": "API endpoint URL. For Ollama: http://localhost:11434/api/generate. For custom OpenAI/Anthropic endpoints, leave empty to use defaults."
         },
         "nuvoCommit.apiKey": {
           "type": "string",
           "default": "",
+          "order": 6,
           "description": "API key for cloud providers (OpenAI, Anthropic). Leave empty for local providers like Ollama."
         },
         "nuvoCommit.model": {
           "type": "string",
           "default": "qwen3:4b",
+          "order": 7,
           "examples": [
             "qwen3:4b",
             "llama3.2:3b",
