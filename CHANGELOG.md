@@ -5,6 +5,26 @@ All notable changes to the **Nuvo Commit** extension are documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-06-13
+
+### Added
+
+- `nuvoCommit.includeBody` setting for optional `header + body` commit messages.
+
+### Changed
+
+- Conventional Commit headers now use a 72-character limit instead of 50
+  characters.
+- Provider prompts now ask for complete, concise headers and support the
+  optional body mode.
+
+### Fixed
+
+- Sanitization now avoids leaving truncated commit headers ending with weak
+  words such as `and`, `with`, or `for`.
+- `autoCommit` now passes multiline messages as `git commit -m <header> -m
+  <body>`.
+
 ## [1.0.0] - 2026-05-22
 
 First stable release. No new features compared to `0.1.x` — this release hardens
@@ -63,6 +83,7 @@ the extension for production use.
 - `Nuvo Commit: Select Model` command with automatic model discovery for Ollama.
 - `autoAccept` and `autoCommit` settings.
 
+[1.1.1]: https://github.com/nuvocode/nuvo-commit/releases/tag/v1.1.1
 [1.0.0]: https://github.com/nuvocode/nuvo-commit/releases/tag/v1.0.0
 [0.1.1]: https://github.com/nuvocode/nuvo-commit/releases/tag/v0.1.1
 [0.1.0]: https://github.com/nuvocode/nuvo-commit/releases/tag/v0.1.0
