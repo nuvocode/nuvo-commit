@@ -1,5 +1,10 @@
 import { buildCommitPrompt } from "../prompt/commitPrompt";
-import { Provider, ProviderConfig, ProviderError } from "./Provider";
+import {
+  CommitMessageOptions,
+  Provider,
+  ProviderConfig,
+  ProviderError,
+} from "./Provider";
 import { sanitizeCommitMessage } from "../utils/sanitize";
 import { fetchWithTimeout } from "./http";
 
@@ -20,8 +25,11 @@ export class AnthropicProvider implements Provider {
 
   constructor(private readonly opts: ProviderConfig) {}
 
-  async generateCommitMessage(diff: string): Promise<string> {
-    const prompt = buildCommitPrompt(diff);
+  async generateCommitMessage(
+    diff: string,
+    options: CommitMessageOptions = {},
+  ): Promise<string> {
+    const prompt = buildCommitPrompt(diff, options);
     const endpoint = this.opts.endpoint || DEFAULT_ENDPOINT;
 
     let res: Response;
@@ -37,7 +45,7 @@ export class AnthropicProvider implements Provider {
           },
           body: JSON.stringify({
             model: this.opts.model,
-            max_tokens: 150,
+            max_tokens: options.includeBody ? 300 : 150,
             messages: [
               {
                 role: "user",
@@ -78,7 +86,7 @@ export class AnthropicProvider implements Provider {
       throw new ProviderError("No response from Anthropic");
     }
 
-    return sanitizeCommitMessage(data.content[0].text.trim());
+    return sanitizeCommitMessage(data.content[0].text.trim(), options);
   }
 
   async listModels(): Promise<string[]> {

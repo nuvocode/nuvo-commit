@@ -62,11 +62,17 @@
           "order": 2,
           "description": "Run `git commit -m <message>` automatically after the user accepts the suggestion."
         },
+        "nuvoCommit.includeBody": {
+          "type": "boolean",
+          "default": false,
+          "order": 3,
+          "description": "Generate a commit body after the Conventional Commit header. Disabled by default."
+        },
         "nuvoCommit.maxDiffChars": {
           "type": "number",
           "default": 12000,
           "minimum": 1000,
-          "order": 3,
+          "order": 4,
           "description": "Maximum diff characters sent to the model. Diffs above this are truncated."
         },
         "nuvoCommit.provider": {
@@ -78,33 +84,33 @@
             "Anthropic - Cloud API provider (requires API key)"
           ],
           "default": "ollama",
-          "order": 4,
+          "order": 5,
           "description": "AI provider used to generate commit messages."
         },
         "nuvoCommit.endpoint": {
           "type": "string",
           "default": "http://localhost:11434/api/generate",
-          "order": 5,
+          "order": 6,
           "description": "API endpoint URL. For Ollama: http://localhost:11434/api/generate. For custom OpenAI/Anthropic endpoints, leave empty to use defaults."
         },
         "nuvoCommit.requestTimeoutMs": {
           "type": "number",
           "default": 30000,
           "minimum": 1000,
-          "order": 6,
+          "order": 7,
           "description": "Maximum time in milliseconds to wait for a provider response before aborting the request."
         },
         "nuvoCommit.apiKey": {
           "type": "string",
           "default": "",
-          "order": 7,
+          "order": 8,
           "markdownDeprecationMessage": "**Deprecated:** API keys are now stored securely. Run the `Nuvo Commit: Set API Key` command instead. Any value here is migrated automatically and then cleared.",
           "description": "Deprecated. Use the 'Nuvo Commit: Set API Key' command instead."
         },
         "nuvoCommit.model": {
           "type": "string",
           "default": "qwen3:4b",
-          "order": 8,
+          "order": 9,
           "examples": [
             "qwen3:4b",
             "llama3.2:3b",

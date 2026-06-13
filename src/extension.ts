@@ -7,9 +7,9 @@ import { Provider, ProviderError, ProviderRegistry } from "./providers/Provider"
 import { OllamaProvider } from "./providers/OllamaProvider";
 import { OpenAIProvider } from "./providers/OpenAIProvider";
 import { AnthropicProvider } from "./providers/AnthropicProvider";
+import { CommitMessageOptions } from "./commitMessage";
 import { buildProviderConfig, requiresApiKey } from "./providers/config";
 import { optimizeDiff } from "./utils/optimizeDiff";
-import { sanitizeCommitMessage } from "./utils/sanitize";
 
 const execFileAsync = promisify(execFile);
 
@@ -26,10 +26,11 @@ interface Settings {
   maxDiffChars: number;
   autoCommit: boolean;
   autoAccept: boolean;
+  includeBody: boolean;
   requestTimeoutMs: number;
 }
 
-function readSettings(): Settings {
+export function readSettings(): Settings {
   const cfg = vscode.workspace.getConfiguration("nuvoCommit");
   return {
     provider: cfg.get<string>("provider", "ollama"),
@@ -41,6 +42,7 @@ function readSettings(): Settings {
     maxDiffChars: cfg.get<number>("maxDiffChars", 12000),
     autoCommit: cfg.get<boolean>("autoCommit", false),
     autoAccept: cfg.get<boolean>("autoAccept", true),
+    includeBody: cfg.get<boolean>("includeBody", false),
     requestTimeoutMs: cfg.get<number>("requestTimeoutMs", 30000),
   };
 }
@@ -74,9 +76,12 @@ function getRepoRoot(): string | undefined {
   return folders[0].uri.fsPath;
 }
 
-async function generateOnce(provider: Provider, diff: string): Promise<string> {
-  const raw = await provider.generateCommitMessage(diff);
-  return sanitizeCommitMessage(raw);
+async function generateOnce(
+  provider: Provider,
+  diff: string,
+  options: CommitMessageOptions,
+): Promise<string> {
+  return provider.generateCommitMessage(diff, options);
 }
 
 interface ActionItem extends vscode.QuickPickItem {
@@ -106,6 +111,16 @@ async function editMessage(current: string): Promise<string | undefined> {
   });
 }
 
+export function buildGitCommitArgs(message: string): string[] {
+  const normalized = message.replace(/\r\n/g, "\n").trim();
+  const [header = "", ...bodyLines] = normalized.split("\n");
+  const body = bodyLines.join("\n").trim();
+
+  return body.length > 0
+    ? ["commit", "-m", header.trim(), "-m", body]
+    : ["commit", "-m", header.trim()];
+}
+
 async function applyMessage(
   message: string,
   cwd: string,
@@ -113,8 +128,10 @@ async function applyMessage(
 ): Promise<void> {
   if (autoCommit) {
     try {
-      await execFileAsync("git", ["commit", "-m", message], { cwd });
-      vscode.window.showInformationMessage(`Committed: ${message}`);
+      await execFileAsync("git", buildGitCommitArgs(message), { cwd });
+      vscode.window.showInformationMessage(
+        `Committed: ${message.split(/\r?\n/)[0]}`,
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       vscode.window.showErrorMessage(`git commit failed: ${msg}`);
@@ -211,7 +228,10 @@ async function runCommand(): Promise<void> {
         title: `Nuvo Commit: generating with ${settings.model}…`,
         cancellable: false,
       },
-      () => generateOnce(provider, optimized.diff),
+      () =>
+        generateOnce(provider, optimized.diff, {
+          includeBody: settings.includeBody,
+        }),
     );
   } catch (err) {
     const msg = err instanceof ProviderError ? err.message : String(err);
@@ -240,7 +260,10 @@ async function runCommand(): Promise<void> {
               title: `Nuvo Commit: regenerating with ${settings.model}…`,
               cancellable: false,
             },
-            () => generateOnce(provider, optimized.diff),
+            () =>
+              generateOnce(provider, optimized.diff, {
+                includeBody: settings.includeBody,
+              }),
           );
         } catch (err) {
           const msg =

@@ -80,6 +80,39 @@ describe("AnthropicProvider", () => {
       );
     });
 
+    it("should allow body output when requested", async () => {
+      const mockResponse = {
+        content: [
+          {
+            type: "text",
+            text: "fix: handle empty response\n\nReturn a clear error for missing data.",
+          },
+        ],
+      };
+
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const provider = new AnthropicProvider({
+        apiKey: mockApiKey,
+        model: mockModel,
+      });
+
+      const message = await provider.generateCommitMessage("diff content", {
+        includeBody: true,
+      });
+      const callArgs = (global.fetch as jest.Mock).mock.calls[0];
+      const body = JSON.parse(callArgs[1].body);
+
+      expect(message).toBe(
+        "fix: handle empty response\n\nReturn a clear error for missing data.",
+      );
+      expect(body.messages[0].content).toContain("Then one blank line.");
+      expect(body.max_tokens).toBe(300);
+    });
+
     it("should throw ProviderError on network error", async () => {
       (global.fetch as jest.Mock).mockRejectedValueOnce(
         new Error("Network error"),

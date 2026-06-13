@@ -1,5 +1,10 @@
 import { buildCommitPrompt } from "../prompt/commitPrompt";
-import { Provider, ProviderConfig, ProviderError } from "./Provider";
+import {
+  CommitMessageOptions,
+  Provider,
+  ProviderConfig,
+  ProviderError,
+} from "./Provider";
 import { sanitizeCommitMessage } from "../utils/sanitize";
 import { fetchWithTimeout } from "./http";
 
@@ -31,8 +36,11 @@ export class OllamaProvider implements Provider {
     return this.opts.endpoint ?? DEFAULT_ENDPOINT;
   }
 
-  async generateCommitMessage(diff: string): Promise<string> {
-    const prompt = buildCommitPrompt(diff);
+  async generateCommitMessage(
+    diff: string,
+    options: CommitMessageOptions = {},
+  ): Promise<string> {
+    const prompt = buildCommitPrompt(diff, options);
 
     let res: Response;
     try {
@@ -48,8 +56,10 @@ export class OllamaProvider implements Provider {
             options: {
               temperature: 0.2,
               top_p: 0.9,
-              num_predict: 50,
-              stop: ["\n\n", "```", "Here", "This commit"],
+              num_predict: options.includeBody ? 180 : 80,
+              stop: options.includeBody
+                ? ["```", "Here", "This commit"]
+                : ["\n\n", "```", "Here", "This commit"],
             },
           }),
         },
@@ -81,7 +91,7 @@ export class OllamaProvider implements Provider {
       throw new ProviderError(`Ollama error: ${data.error}`);
     }
 
-    return sanitizeCommitMessage(stripThinking(data.response ?? ""));
+    return sanitizeCommitMessage(stripThinking(data.response ?? ""), options);
   }
 
   async listModels(): Promise<string[]> {

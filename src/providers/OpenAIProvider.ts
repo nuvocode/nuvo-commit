@@ -1,5 +1,10 @@
 import { buildCommitPrompt } from "../prompt/commitPrompt";
-import { Provider, ProviderConfig, ProviderError } from "./Provider";
+import {
+  CommitMessageOptions,
+  Provider,
+  ProviderConfig,
+  ProviderError,
+} from "./Provider";
 import { sanitizeCommitMessage } from "../utils/sanitize";
 import { fetchWithTimeout } from "./http";
 
@@ -21,8 +26,11 @@ export class OpenAIProvider implements Provider {
 
   constructor(private readonly opts: ProviderConfig) {}
 
-  async generateCommitMessage(diff: string): Promise<string> {
-    const prompt = buildCommitPrompt(diff);
+  async generateCommitMessage(
+    diff: string,
+    options: CommitMessageOptions = {},
+  ): Promise<string> {
+    const prompt = buildCommitPrompt(diff, options);
     const endpoint = this.opts.endpoint || DEFAULT_ENDPOINT;
 
     let res: Response;
@@ -49,7 +57,7 @@ export class OpenAIProvider implements Provider {
               },
             ],
             temperature: 0.2,
-            max_tokens: 150,
+            max_tokens: options.includeBody ? 300 : 150,
           }),
         },
         this.opts.timeoutMs,
@@ -84,7 +92,7 @@ export class OpenAIProvider implements Provider {
       throw new ProviderError("No response from OpenAI");
     }
 
-    return sanitizeCommitMessage(data.choices[0].message.content.trim());
+    return sanitizeCommitMessage(data.choices[0].message.content.trim(), options);
   }
 
   async listModels(): Promise<string[]> {
