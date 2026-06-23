@@ -1,5 +1,11 @@
 import { execFile } from "child_process";
-import { getStagedDiff, getWorkingDiff, GitError } from "./diff";
+import {
+  getPullRequestDiff,
+  getStagedDiff,
+  getWorkingDiff,
+  GitError,
+  resolvePullRequestBaseBranch,
+} from "./diff";
 
 jest.mock("child_process");
 
@@ -106,5 +112,97 @@ describe("getWorkingDiff", () => {
       },
     });
     await expect(getWorkingDiff(CWD)).rejects.toThrow(GitError);
+  });
+});
+
+describe("resolvePullRequestBaseBranch", () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it("uses a valid configured base branch", async () => {
+    routeGit({
+      "rev-parse --verify release^{commit}": { stdout: "abc123\n" },
+    });
+
+    await expect(resolvePullRequestBaseBranch(CWD, "release")).resolves.toBe(
+      "release",
+    );
+  });
+
+  it("throws when a configured base branch is missing", async () => {
+    routeGit({
+      "rev-parse --verify missing^{commit}": { error: new Error("fatal") },
+    });
+
+    await expect(resolvePullRequestBaseBranch(CWD, "missing")).rejects.toThrow(
+      GitError,
+    );
+  });
+
+  it("falls back from origin/HEAD to main to master", async () => {
+    routeGit({
+      "symbolic-ref --short refs/remotes/origin/HEAD": {
+        error: new Error("no origin head"),
+      },
+      "rev-parse --verify main^{commit}": { error: new Error("no main") },
+      "rev-parse --verify master^{commit}": { stdout: "abc123\n" },
+    });
+
+    await expect(resolvePullRequestBaseBranch(CWD)).resolves.toBe("master");
+  });
+});
+
+describe("getPullRequestDiff", () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it("returns branch diff, files, base, current branch, and commits", async () => {
+    routeGit({
+      "rev-parse --abbrev-ref HEAD": { stdout: "feature/pr-content\n" },
+      "symbolic-ref --short refs/remotes/origin/HEAD": {
+        stdout: "origin/main\n",
+      },
+      "rev-parse --verify origin/main^{commit}": { stdout: "abc123\n" },
+      "diff --name-only --diff-filter=ACMRTUXB origin/main...HEAD": {
+        stdout: "src/a.ts\n",
+      },
+      "diff --no-ext-diff --unified=3 origin/main...HEAD": {
+        stdout: "diff --git a/src/a.ts b/src/a.ts\n+hello",
+      },
+      "log --pretty=format:%s origin/main..HEAD": {
+        stdout: "feat: add pr content\nfix: adjust prompt\n",
+      },
+    });
+
+    const result = await getPullRequestDiff(CWD);
+
+    expect(result).toEqual({
+      baseBranch: "origin/main",
+      currentBranch: "feature/pr-content",
+      files: ["src/a.ts"],
+      diff: "diff --git a/src/a.ts b/src/a.ts\n+hello",
+      commits: ["feat: add pr content", "fix: adjust prompt"],
+    });
+  });
+
+  it("does not request commits when commit list is disabled", async () => {
+    routeGit({
+      "rev-parse --abbrev-ref HEAD": { stdout: "feature/pr-content\n" },
+      "rev-parse --verify main^{commit}": { stdout: "abc123\n" },
+      "diff --name-only --diff-filter=ACMRTUXB main...HEAD": {
+        stdout: "src/a.ts\n",
+      },
+      "diff --no-ext-diff --unified=3 main...HEAD": {
+        stdout: "diff --git a/src/a.ts b/src/a.ts\n+hello",
+      },
+    });
+
+    const result = await getPullRequestDiff(CWD, "main", false);
+
+    expect(result.commits).toEqual([]);
+    expect(mockExecFile).not.toHaveBeenCalledWith(
+      "git",
+      ["log", "--pretty=format:%s", "main..HEAD"],
+      expect.anything(),
+      expect.anything(),
+    );
   });
 });

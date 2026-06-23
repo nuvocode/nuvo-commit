@@ -2,12 +2,22 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import * as vscode from "vscode";
 
-import { getStagedDiff, getWorkingDiff, GitError } from "./git/diff";
-import { Provider, ProviderError, ProviderRegistry } from "./providers/Provider";
+import {
+  getPullRequestDiff,
+  getStagedDiff,
+  getWorkingDiff,
+  GitError,
+} from "./git/diff";
+import {
+  Provider,
+  ProviderError,
+  ProviderRegistry,
+} from "./providers/Provider";
 import { OllamaProvider } from "./providers/OllamaProvider";
 import { OpenAIProvider } from "./providers/OpenAIProvider";
 import { AnthropicProvider } from "./providers/AnthropicProvider";
 import { CommitMessageOptions } from "./commitMessage";
+import { PullRequestContent, PullRequestContentOptions } from "./pullRequest";
 import { buildProviderConfig, requiresApiKey } from "./providers/config";
 import { optimizeDiff } from "./utils/optimizeDiff";
 
@@ -27,6 +37,9 @@ interface Settings {
   autoCommit: boolean;
   autoAccept: boolean;
   includeBody: boolean;
+  pullRequestBaseBranch: string;
+  pullRequestOpenCreateView: boolean;
+  pullRequestIncludeCommitList: boolean;
   requestTimeoutMs: number;
 }
 
@@ -43,6 +56,15 @@ export function readSettings(): Settings {
     autoCommit: cfg.get<boolean>("autoCommit", false),
     autoAccept: cfg.get<boolean>("autoAccept", true),
     includeBody: cfg.get<boolean>("includeBody", false),
+    pullRequestBaseBranch: cfg.get<string>("pullRequestBaseBranch", ""),
+    pullRequestOpenCreateView: cfg.get<boolean>(
+      "pullRequestOpenCreateView",
+      true,
+    ),
+    pullRequestIncludeCommitList: cfg.get<boolean>(
+      "pullRequestIncludeCommitList",
+      true,
+    ),
     requestTimeoutMs: cfg.get<number>("requestTimeoutMs", 30000),
   };
 }
@@ -84,8 +106,26 @@ async function generateOnce(
   return provider.generateCommitMessage(diff, options);
 }
 
+async function generatePullRequestContentOnce(
+  provider: Provider,
+  diff: string,
+  options: PullRequestContentOptions,
+): Promise<PullRequestContent> {
+  return provider.generatePullRequestContent(diff, options);
+}
+
 interface ActionItem extends vscode.QuickPickItem {
   action: "accept" | "regenerate" | "edit" | "cancel";
+}
+
+interface PullRequestActionItem extends vscode.QuickPickItem {
+  action:
+    | "accept"
+    | "regenerate"
+    | "copyTitle"
+    | "copyBody"
+    | "openCreate"
+    | "cancel";
 }
 
 async function pickAction(message: string): Promise<ActionItem["action"]> {
@@ -109,6 +149,74 @@ async function editMessage(current: string): Promise<string | undefined> {
     ignoreFocusOut: true,
     validateInput: (v) => (v.trim().length === 0 ? "Cannot be empty" : null),
   });
+}
+
+function formatPullRequestContent(content: PullRequestContent): string {
+  return `${content.title.trim()}\n\n${content.body.trim()}`.trim();
+}
+
+async function copyPullRequestContent(
+  content: PullRequestContent,
+): Promise<void> {
+  await vscode.env.clipboard.writeText(formatPullRequestContent(content));
+  vscode.window.showInformationMessage(
+    "Nuvo Commit: pull request content copied to clipboard.",
+  );
+}
+
+async function pickPullRequestAction(
+  content: PullRequestContent,
+): Promise<PullRequestActionItem["action"]> {
+  const items: PullRequestActionItem[] = [
+    {
+      label: "$(check) Accept",
+      action: "accept",
+      description: "Copy generated title and body",
+    },
+    { label: "$(sync) Regenerate", action: "regenerate" },
+    { label: "$(copy) Copy Title", action: "copyTitle" },
+    { label: "$(copy) Copy Body", action: "copyBody" },
+    {
+      label: "$(git-pull-request-create) Open GitHub PR Create",
+      action: "openCreate",
+    },
+    { label: "$(close) Cancel", action: "cancel" },
+  ];
+  const picked = await vscode.window.showQuickPick(items, {
+    placeHolder: content.title,
+    ignoreFocusOut: true,
+  });
+  return picked?.action ?? "cancel";
+}
+
+export async function openGitHubPullRequestCreate(
+  cwd: string,
+  compareBranch: string,
+): Promise<boolean> {
+  const githubPrExtension = vscode.extensions.getExtension(
+    "GitHub.vscode-pull-request-github",
+  );
+
+  if (!githubPrExtension) {
+    vscode.window.showWarningMessage(
+      "Nuvo Commit: GitHub Pull Requests extension is not installed. Paste the copied content manually.",
+    );
+    return false;
+  }
+
+  try {
+    await vscode.commands.executeCommand("pr.create", {
+      repoPath: cwd,
+      compareBranch,
+    });
+    return true;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    vscode.window.showErrorMessage(
+      `Nuvo Commit: failed to open GitHub PR create view: ${msg}`,
+    );
+    return false;
+  }
 }
 
 export function buildGitCommitArgs(message: string): string[] {
@@ -266,8 +374,7 @@ async function runCommand(): Promise<void> {
               }),
           );
         } catch (err) {
-          const msg =
-            err instanceof ProviderError ? err.message : String(err);
+          const msg = err instanceof ProviderError ? err.message : String(err);
           vscode.window.showErrorMessage(`Nuvo Commit: ${msg}`);
           return;
         }
@@ -279,6 +386,128 @@ async function runCommand(): Promise<void> {
         }
         break;
       }
+      case "cancel":
+        return;
+    }
+  }
+}
+
+async function runPullRequestContentCommand(): Promise<void> {
+  const cwd = getRepoRoot();
+  if (!cwd) {
+    vscode.window.showErrorMessage("Nuvo Commit: open a folder first.");
+    return;
+  }
+
+  const settings = readSettings();
+
+  let provider: Provider;
+  try {
+    provider = await buildProvider(settings);
+  } catch (err) {
+    const msg = err instanceof ProviderError ? err.message : String(err);
+    vscode.window.showErrorMessage(`Nuvo Commit: ${msg}`);
+    return;
+  }
+
+  let pullRequestDiff;
+  try {
+    pullRequestDiff = await getPullRequestDiff(
+      cwd,
+      settings.pullRequestBaseBranch,
+      settings.pullRequestIncludeCommitList,
+    );
+  } catch (err) {
+    const msg = err instanceof GitError ? err.message : String(err);
+    vscode.window.showErrorMessage(`Nuvo Commit: ${msg}`);
+    return;
+  }
+
+  if (pullRequestDiff.files.length === 0) {
+    vscode.window.showWarningMessage(
+      `Nuvo Commit: no branch changes detected against ${pullRequestDiff.baseBranch}.`,
+    );
+    return;
+  }
+
+  const optimized = optimizeDiff(pullRequestDiff.diff, settings.maxDiffChars);
+  if (optimized.includedFiles.length === 0) {
+    vscode.window.showWarningMessage(
+      "Nuvo Commit: all pull request files are ignored (lock/generated/binary).",
+    );
+    return;
+  }
+
+  const promptOptions: PullRequestContentOptions = {
+    baseBranch: pullRequestDiff.baseBranch,
+    currentBranch: pullRequestDiff.currentBranch,
+    commits: pullRequestDiff.commits,
+    includeCommitList: settings.pullRequestIncludeCommitList,
+  };
+
+  let content: PullRequestContent;
+  try {
+    content = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Nuvo Commit: generating pull request content with ${settings.model}…`,
+        cancellable: false,
+      },
+      () =>
+        generatePullRequestContentOnce(provider, optimized.diff, promptOptions),
+    );
+  } catch (err) {
+    const msg = err instanceof ProviderError ? err.message : String(err);
+    vscode.window.showErrorMessage(`Nuvo Commit: ${msg}`);
+    return;
+  }
+
+  while (true) {
+    const action = await pickPullRequestAction(content);
+    switch (action) {
+      case "accept":
+        await copyPullRequestContent(content);
+        if (settings.pullRequestOpenCreateView) {
+          await openGitHubPullRequestCreate(cwd, pullRequestDiff.currentBranch);
+        }
+        return;
+      case "regenerate":
+        try {
+          content = await vscode.window.withProgress(
+            {
+              location: vscode.ProgressLocation.Notification,
+              title: `Nuvo Commit: regenerating pull request content with ${settings.model}…`,
+              cancellable: false,
+            },
+            () =>
+              generatePullRequestContentOnce(
+                provider,
+                optimized.diff,
+                promptOptions,
+              ),
+          );
+        } catch (err) {
+          const msg = err instanceof ProviderError ? err.message : String(err);
+          vscode.window.showErrorMessage(`Nuvo Commit: ${msg}`);
+          return;
+        }
+        break;
+      case "copyTitle":
+        await vscode.env.clipboard.writeText(content.title);
+        vscode.window.showInformationMessage(
+          "Nuvo Commit: pull request title copied to clipboard.",
+        );
+        break;
+      case "copyBody":
+        await vscode.env.clipboard.writeText(content.body);
+        vscode.window.showInformationMessage(
+          "Nuvo Commit: pull request body copied to clipboard.",
+        );
+        break;
+      case "openCreate":
+        await copyPullRequestContent(content);
+        await openGitHubPullRequestCreate(cwd, pullRequestDiff.currentBranch);
+        return;
       case "cancel":
         return;
     }
@@ -414,6 +643,10 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.commands.registerCommand("nuvoCommit.generate", runCommand),
+    vscode.commands.registerCommand(
+      "nuvoCommit.generatePullRequestContent",
+      runPullRequestContentCommand,
+    ),
     vscode.commands.registerCommand("nuvoCommit.settings", () => {
       vscode.commands.executeCommand(
         "workbench.action.openSettings",
