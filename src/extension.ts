@@ -328,6 +328,14 @@ async function runCommand(): Promise<void> {
     return;
   }
 
+  const commitOptions: CommitMessageOptions = {
+    includeBody: settings.includeBody,
+    files: optimized.includedFiles,
+    skippedFiles: optimized.skippedFiles,
+    truncated: optimized.truncated,
+    truncatedFiles: optimized.truncatedFiles,
+  };
+
   let message: string;
   try {
     message = await vscode.window.withProgress(
@@ -336,10 +344,7 @@ async function runCommand(): Promise<void> {
         title: `Nuvo Commit: generating with ${settings.model}…`,
         cancellable: false,
       },
-      () =>
-        generateOnce(provider, optimized.diff, {
-          includeBody: settings.includeBody,
-        }),
+      () => generateOnce(provider, optimized.diff, commitOptions),
     );
   } catch (err) {
     const msg = err instanceof ProviderError ? err.message : String(err);
@@ -368,10 +373,7 @@ async function runCommand(): Promise<void> {
               title: `Nuvo Commit: regenerating with ${settings.model}…`,
               cancellable: false,
             },
-            () =>
-              generateOnce(provider, optimized.diff, {
-                includeBody: settings.includeBody,
-              }),
+            () => generateOnce(provider, optimized.diff, commitOptions),
           );
         } catch (err) {
           const msg = err instanceof ProviderError ? err.message : String(err);

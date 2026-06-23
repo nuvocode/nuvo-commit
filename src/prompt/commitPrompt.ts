@@ -26,6 +26,8 @@ OUTPUT FORMAT — STRICT:
 - type must be one of: ${ALLOWED_TYPES.join(", ")}.
 - subject is imperative mood, lowercase, no trailing period.
 - Keep it concise and complete.
+- Consider all changed files listed in the context, not only the first diff.
+- If the diff was truncated, infer the main intent from the full changed-file list.
 - Do not end the subject with weak trailing words like "and", "with", "for", or "to".
 
 FORBIDDEN:
@@ -61,6 +63,8 @@ OUTPUT FORMAT — STRICT:
 - Format: <type>(<scope>)?: <subject>
 - type must be one of: ${ALLOWED_TYPES.join(", ")}.
 - subject is imperative mood, lowercase, no trailing period.
+- Consider all changed files listed in the context, not only the first diff.
+- If the diff was truncated, infer the main intent from the full changed-file list.
 - Do not end the header subject with weak trailing words like "and", "with", "for", or "to".
 
 FORBIDDEN:
@@ -86,8 +90,23 @@ export function buildCommitPrompt(
   options: CommitPromptOptions = {},
 ): string {
   const rules = options.includeBody ? BODY_RULES : HEADER_RULES;
+  const changedFiles = formatFileList("Changed files", options.files);
+  const skippedFiles = formatFileList("Skipped files", options.skippedFiles);
+  const truncatedFiles = formatFileList(
+    "Partially included files",
+    options.truncatedFiles,
+  );
+  const truncationNote = options.truncated
+    ? "Diff context is balanced across files and partially truncated. Do not focus only on the first file."
+    : undefined;
+  const context = [
+    changedFiles,
+    skippedFiles,
+    truncatedFiles,
+    truncationNote,
+  ].filter((line): line is string => Boolean(line));
 
-  return `${rules}
+  return `${rules}${context.length > 0 ? `\n\nChange context:\n${context.join("\n")}` : ""}
 
 Git diff:
 \`\`\`diff
@@ -95,4 +114,15 @@ ${diff}
 \`\`\`
 
 Commit message:`;
+}
+
+function formatFileList(label: string, files?: string[]): string | undefined {
+  if (!files || files.length === 0) return undefined;
+
+  const visible = files.slice(0, 30);
+  const suffix =
+    files.length > visible.length
+      ? `, ... +${files.length - visible.length} more`
+      : "";
+  return `${label}: ${visible.join(", ")}${suffix}`;
 }
