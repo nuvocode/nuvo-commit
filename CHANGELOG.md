@@ -5,6 +5,22 @@ All notable changes to the **Nuvo Commit** extension are documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-06-25
+
+### Added
+
+- Provider-specific model and endpoint settings for Ollama, OpenAI, and Anthropic.
+- Provider-specific secure API key storage for OpenAI and Anthropic.
+- Focused **Nuvo Commit: Settings** flow that shows only the selected provider's
+  relevant configuration fields.
+
+### Changed
+
+- **Nuvo Commit: Select Model** now saves the model for the active provider only,
+  so switching providers no longer overwrites other provider configurations.
+- Deprecated `nuvoCommit.model`, `nuvoCommit.endpoint`, and `nuvoCommit.apiKey`
+  remain available as upgrade fallbacks.
+
 ## [1.1.1] - 2026-06-13
 
 ### Added
@@ -83,6 +99,7 @@ the extension for production use.
 - `Nuvo Commit: Select Model` command with automatic model discovery for Ollama.
 - `autoAccept` and `autoCommit` settings.
 
+[1.2.0]: https://github.com/nuvocode/nuvo-commit/releases/tag/v1.2.0
 [1.1.1]: https://github.com/nuvocode/nuvo-commit/releases/tag/v1.1.1
 [1.0.0]: https://github.com/nuvocode/nuvo-commit/releases/tag/v1.0.0
 [0.1.1]: https://github.com/nuvocode/nuvo-commit/releases/tag/v0.1.1
