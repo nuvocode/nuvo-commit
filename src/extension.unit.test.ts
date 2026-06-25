@@ -3,10 +3,13 @@ import * as vscode from "vscode";
 import packageJson from "../package.json";
 import {
   buildGitCommitArgs,
+  configureProviderSettings,
   getApiKeySecret,
   getProviderSettingKey,
   openGitHubPullRequestCreate,
   readSettings,
+  updateActiveProvider,
+  updateProviderEndpoint,
   updateProviderModel,
 } from "./extension";
 
@@ -35,12 +38,22 @@ function mockNuvoConfig(values: Record<string, unknown>) {
   };
 
   const getConfiguration = vscode.workspace.getConfiguration as jest.Mock;
-  getConfiguration.mockReturnValueOnce(config);
+  getConfiguration.mockReturnValue(config);
   return { config, update };
 }
 
 describe("extension helpers", () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (vscode.window.showQuickPick as jest.Mock).mockReset();
+    (vscode.window.showInputBox as jest.Mock).mockReset();
+    const getConfiguration = vscode.workspace.getConfiguration as jest.Mock;
+    getConfiguration.mockReturnValue({
+      get: jest.fn((_key: string, defaultValue: unknown) => defaultValue),
+      inspect: jest.fn(() => undefined),
+      update: jest.fn(),
+    });
+  });
 
   it("should default includeBody to false in settings", () => {
     expect(readSettings().includeBody).toBe(false);
@@ -186,6 +199,33 @@ describe("extension helpers", () => {
     );
   });
 
+  it("should update the active provider endpoint setting", async () => {
+    const { update } = mockNuvoConfig({});
+
+    await updateProviderEndpoint(
+      "openai",
+      "http://localhost:1234/v1/chat/completions",
+    );
+
+    expect(update).toHaveBeenCalledWith(
+      "openai.endpoint",
+      "http://localhost:1234/v1/chat/completions",
+      vscode.ConfigurationTarget.Global,
+    );
+  });
+
+  it("should update the active provider setting", async () => {
+    const { update } = mockNuvoConfig({});
+
+    await updateActiveProvider("anthropic");
+
+    expect(update).toHaveBeenCalledWith(
+      "provider",
+      "anthropic",
+      vscode.ConfigurationTarget.Global,
+    );
+  });
+
   it("should use separate API key secrets for cloud providers", () => {
     expect(getApiKeySecret("openai")).toBe("nuvoCommit.openai.apiKey");
     expect(getApiKeySecret("anthropic")).toBe("nuvoCommit.anthropic.apiKey");
@@ -195,6 +235,105 @@ describe("extension helpers", () => {
   it("should build provider-specific setting keys", () => {
     expect(getProviderSettingKey("ollama", "endpoint")).toBe("ollama.endpoint");
     expect(getProviderSettingKey("openai", "model")).toBe("openai.model");
+  });
+
+  it("should show only non-secret active Ollama settings", async () => {
+    mockNuvoConfig({
+      provider: "ollama",
+      "ollama.model": "qwen3:4b",
+      "ollama.endpoint": "http://localhost:11434/api/generate",
+    });
+    const showQuickPick = vscode.window.showQuickPick as jest.Mock;
+    showQuickPick.mockResolvedValueOnce(undefined);
+
+    await configureProviderSettings();
+
+    const items = showQuickPick.mock.calls[0][0];
+    expect(items.map((item: { action: string }) => item.action)).toEqual([
+      "provider",
+      "model",
+      "endpoint",
+    ]);
+  });
+
+  it("should show API key action for active cloud providers", async () => {
+    mockNuvoConfig({
+      provider: "openai",
+      "openai.model": "gpt-4o-mini",
+      "openai.endpoint": "",
+    });
+    const showQuickPick = vscode.window.showQuickPick as jest.Mock;
+    showQuickPick.mockResolvedValueOnce(undefined);
+
+    await configureProviderSettings();
+
+    const items = showQuickPick.mock.calls[0][0];
+    expect(items.map((item: { action: string }) => item.action)).toEqual([
+      "provider",
+      "model",
+      "endpoint",
+      "apiKey",
+    ]);
+  });
+
+  it("should configure the active provider model from focused settings", async () => {
+    const { update } = mockNuvoConfig({
+      provider: "openai",
+      "openai.model": "gpt-4o-mini",
+      "openai.endpoint": "",
+    });
+    const showQuickPick = vscode.window.showQuickPick as jest.Mock;
+    const showInputBox = vscode.window.showInputBox as jest.Mock;
+    showQuickPick.mockResolvedValueOnce({ action: "model" });
+    showInputBox.mockResolvedValueOnce("gpt-4o");
+
+    await configureProviderSettings();
+
+    expect(update).toHaveBeenCalledWith(
+      "openai.model",
+      "gpt-4o",
+      vscode.ConfigurationTarget.Global,
+    );
+  });
+
+  it("should configure the active provider endpoint from focused settings", async () => {
+    const { update } = mockNuvoConfig({
+      provider: "anthropic",
+      "anthropic.model": "claude-3-5-sonnet-20241022",
+      "anthropic.endpoint": "",
+    });
+    const showQuickPick = vscode.window.showQuickPick as jest.Mock;
+    const showInputBox = vscode.window.showInputBox as jest.Mock;
+    showQuickPick.mockResolvedValueOnce({ action: "endpoint" });
+    showInputBox.mockResolvedValueOnce("https://custom-anthropic/v1/messages");
+
+    await configureProviderSettings();
+
+    expect(update).toHaveBeenCalledWith(
+      "anthropic.endpoint",
+      "https://custom-anthropic/v1/messages",
+      vscode.ConfigurationTarget.Global,
+    );
+  });
+
+  it("should change providers from focused settings", async () => {
+    const { update } = mockNuvoConfig({
+      provider: "ollama",
+      "ollama.model": "qwen3:4b",
+      "ollama.endpoint": "http://localhost:11434/api/generate",
+    });
+    const showQuickPick = vscode.window.showQuickPick as jest.Mock;
+    showQuickPick
+      .mockResolvedValueOnce({ action: "provider" })
+      .mockResolvedValueOnce({ provider: "openai" });
+
+    await configureProviderSettings();
+
+    expect(update).toHaveBeenCalledWith(
+      "provider",
+      "openai",
+      vscode.ConfigurationTarget.Global,
+    );
   });
 
   it("should pass a single -m argument for header-only commits", () => {

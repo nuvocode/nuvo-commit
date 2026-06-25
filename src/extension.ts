@@ -670,8 +670,176 @@ export async function updateProviderModel(
   );
 }
 
+export async function updateProviderEndpoint(
+  provider: string,
+  endpoint: string,
+): Promise<void> {
+  const cfg = vscode.workspace.getConfiguration("nuvoCommit");
+  await cfg.update(
+    getProviderSettingKey(provider, "endpoint"),
+    endpoint,
+    vscode.ConfigurationTarget.Global,
+  );
+}
+
+export async function updateActiveProvider(provider: string): Promise<void> {
+  const cfg = vscode.workspace.getConfiguration("nuvoCommit");
+  await cfg.update("provider", provider, vscode.ConfigurationTarget.Global);
+}
+
+interface ProviderItem extends vscode.QuickPickItem {
+  provider: "ollama" | "openai" | "anthropic";
+}
+
 interface ApiKeyProviderItem extends vscode.QuickPickItem {
   provider: "openai" | "anthropic";
+}
+
+interface SettingsActionItem extends vscode.QuickPickItem {
+  action: "provider" | "model" | "endpoint" | "apiKey";
+}
+
+function providerLabel(provider: string): string {
+  switch (provider) {
+    case "ollama":
+      return "Ollama";
+    case "openai":
+      return "OpenAI";
+    case "anthropic":
+      return "Anthropic";
+    default:
+      return provider;
+  }
+}
+
+async function pickProvider(
+  currentProvider: string,
+): Promise<ProviderItem["provider"] | undefined> {
+  const picked = await vscode.window.showQuickPick<ProviderItem>(
+    [
+      {
+        label: "Ollama",
+        description:
+          currentProvider === "ollama" ? "Current provider" : undefined,
+        provider: "ollama",
+      },
+      {
+        label: "OpenAI",
+        description:
+          currentProvider === "openai" ? "Current provider" : undefined,
+        provider: "openai",
+      },
+      {
+        label: "Anthropic",
+        description:
+          currentProvider === "anthropic" ? "Current provider" : undefined,
+        provider: "anthropic",
+      },
+    ],
+    {
+      placeHolder: "Select AI provider",
+      ignoreFocusOut: true,
+    },
+  );
+
+  return picked?.provider;
+}
+
+function buildSettingsActionItems(settings: Settings): SettingsActionItem[] {
+  const items: SettingsActionItem[] = [
+    {
+      label: "$(server-environment) Provider",
+      description: providerLabel(settings.provider),
+      action: "provider",
+    },
+    {
+      label: "$(symbol-string) Model",
+      description: settings.model,
+      action: "model",
+    },
+    {
+      label: "$(link) Endpoint",
+      description: settings.endpoint || "Default provider endpoint",
+      action: "endpoint",
+    },
+  ];
+
+  if (requiresApiKey(settings.provider)) {
+    items.push({
+      label: "$(key) API Key",
+      description: `Set or clear ${providerLabel(settings.provider)} key`,
+      action: "apiKey",
+    });
+  }
+
+  return items;
+}
+
+async function configureProviderModel(settings: Settings): Promise<void> {
+  const input = await vscode.window.showInputBox({
+    value: settings.model,
+    prompt: `Enter ${providerLabel(settings.provider)} model`,
+    ignoreFocusOut: true,
+    validateInput: (value) =>
+      value.trim().length === 0 ? "Model cannot be empty" : null,
+  });
+  if (input === undefined) return;
+
+  await updateProviderModel(settings.provider, input.trim());
+  vscode.window.showInformationMessage(
+    `Nuvo Commit: ${providerLabel(settings.provider)} model updated.`,
+  );
+}
+
+async function configureProviderEndpoint(settings: Settings): Promise<void> {
+  const input = await vscode.window.showInputBox({
+    value: settings.endpoint,
+    prompt: `Enter ${providerLabel(settings.provider)} endpoint`,
+    placeHolder:
+      settings.provider === "ollama"
+        ? "http://localhost:11434/api/generate"
+        : "Leave empty to use provider default",
+    ignoreFocusOut: true,
+  });
+  if (input === undefined) return;
+
+  await updateProviderEndpoint(settings.provider, input.trim());
+  vscode.window.showInformationMessage(
+    `Nuvo Commit: ${providerLabel(settings.provider)} endpoint updated.`,
+  );
+}
+
+export async function configureProviderSettings(): Promise<void> {
+  const settings = readSettings();
+  const picked = await vscode.window.showQuickPick(
+    buildSettingsActionItems(settings),
+    {
+      placeHolder: `Configure ${providerLabel(settings.provider)}`,
+      ignoreFocusOut: true,
+    },
+  );
+  if (!picked) return;
+
+  switch (picked.action) {
+    case "provider": {
+      const provider = await pickProvider(settings.provider);
+      if (!provider) return;
+      await updateActiveProvider(provider);
+      vscode.window.showInformationMessage(
+        `Nuvo Commit: provider set to ${providerLabel(provider)}.`,
+      );
+      return;
+    }
+    case "model":
+      await configureProviderModel(settings);
+      return;
+    case "endpoint":
+      await configureProviderEndpoint(settings);
+      return;
+    case "apiKey":
+      await setApiKey();
+      return;
+  }
 }
 
 async function pickApiKeyProvider(
@@ -791,12 +959,10 @@ export function activate(context: vscode.ExtensionContext): void {
       "nuvoCommit.generatePullRequestContent",
       runPullRequestContentCommand,
     ),
-    vscode.commands.registerCommand("nuvoCommit.settings", () => {
-      vscode.commands.executeCommand(
-        "workbench.action.openSettings",
-        "nuvoCommit",
-      );
-    }),
+    vscode.commands.registerCommand(
+      "nuvoCommit.settings",
+      configureProviderSettings,
+    ),
     vscode.commands.registerCommand("nuvoCommit.selectModel", selectModel),
     vscode.commands.registerCommand("nuvoCommit.setApiKey", setApiKey),
   );

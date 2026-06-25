@@ -64,7 +64,9 @@ storage automatically and removed from `settings.json` on first activation.
 
 ## Configuration
 
-Configure in VS Code Settings (`Cmd+,`) under **Nuvo Commit**:
+Run **Nuvo Commit: Settings** to configure only the selected provider's model,
+endpoint, and API key. Provider-specific settings are also available in VS Code
+Settings (`Cmd+,`) under **Nuvo Commit**:
 
 | Setting                         | Default                      | Description                                                            |
 | ------------------------------- | ---------------------------- | ---------------------------------------------------------------------- |

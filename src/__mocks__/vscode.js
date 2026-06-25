@@ -5,6 +5,7 @@ module.exports = {
     showErrorMessage: jest.fn(),
     showWarningMessage: jest.fn(),
     showQuickPick: jest.fn(),
+    showInputBox: jest.fn(),
     withProgress: jest.fn((_options, task) => task()),
     createOutputChannel: jest.fn(() => ({
       appendLine: jest.fn(),
