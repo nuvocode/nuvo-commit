@@ -131,30 +131,83 @@
           "order": 8,
           "description": "AI provider used to generate commit messages."
         },
-        "nuvoCommit.endpoint": {
+        "nuvoCommit.ollama.endpoint": {
           "type": "string",
           "default": "http://localhost:11434/api/generate",
           "order": 9,
-          "description": "API endpoint URL. For Ollama: http://localhost:11434/api/generate. For custom OpenAI/Anthropic endpoints, leave empty to use defaults."
+          "description": "Ollama API endpoint URL."
+        },
+        "nuvoCommit.ollama.model": {
+          "type": "string",
+          "default": "qwen3:4b",
+          "order": 10,
+          "examples": [
+            "qwen3:4b",
+            "llama3.2:3b",
+            "mistral:7b",
+            "codellama:7b",
+            "deepseek-coder:6.7b"
+          ],
+          "description": "Ollama model identifier."
+        },
+        "nuvoCommit.openai.endpoint": {
+          "type": "string",
+          "default": "",
+          "order": 11,
+          "description": "OpenAI API endpoint URL. Leave empty to use the default OpenAI endpoint."
+        },
+        "nuvoCommit.openai.model": {
+          "type": "string",
+          "default": "gpt-4o-mini",
+          "order": 12,
+          "examples": [
+            "gpt-4o",
+            "gpt-4o-mini",
+            "local-model"
+          ],
+          "description": "OpenAI model identifier."
+        },
+        "nuvoCommit.anthropic.endpoint": {
+          "type": "string",
+          "default": "",
+          "order": 13,
+          "description": "Anthropic API endpoint URL. Leave empty to use the default Anthropic endpoint."
+        },
+        "nuvoCommit.anthropic.model": {
+          "type": "string",
+          "default": "claude-3-5-sonnet-20241022",
+          "order": 14,
+          "examples": [
+            "claude-sonnet-4-20250514",
+            "claude-3-5-sonnet-20241022"
+          ],
+          "description": "Anthropic model identifier."
         },
         "nuvoCommit.requestTimeoutMs": {
           "type": "number",
           "default": 30000,
           "minimum": 1000,
-          "order": 10,
+          "order": 15,
           "description": "Maximum time in milliseconds to wait for a provider response before aborting the request."
         },
         "nuvoCommit.apiKey": {
           "type": "string",
           "default": "",
-          "order": 11,
+          "order": 16,
           "markdownDeprecationMessage": "**Deprecated:** API keys are now stored securely. Run the `Nuvo Commit: Set API Key` command instead. Any value here is migrated automatically and then cleared.",
           "description": "Deprecated. Use the 'Nuvo Commit: Set API Key' command instead."
+        },
+        "nuvoCommit.endpoint": {
+          "type": "string",
+          "default": "http://localhost:11434/api/generate",
+          "order": 17,
+          "markdownDeprecationMessage": "**Deprecated:** Use provider-specific endpoint settings such as `nuvoCommit.ollama.endpoint`, `nuvoCommit.openai.endpoint`, or `nuvoCommit.anthropic.endpoint`.",
+          "description": "Deprecated fallback endpoint setting."
         },
         "nuvoCommit.model": {
           "type": "string",
           "default": "qwen3:4b",
-          "order": 12,
+          "order": 18,
           "examples": [
             "qwen3:4b",
             "llama3.2:3b",
@@ -166,7 +219,8 @@
             "claude-sonnet-4-20250514",
             "claude-3-5-sonnet-20241022"
           ],
-          "description": "Model identifier passed to the provider. Use 'Nuvo Commit: Select Model' command to choose from available models or enter manually."
+          "markdownDeprecationMessage": "**Deprecated:** Use provider-specific model settings such as `nuvoCommit.ollama.model`, `nuvoCommit.openai.model`, or `nuvoCommit.anthropic.model`.",
+          "description": "Deprecated fallback model setting."
         }
       }
     }

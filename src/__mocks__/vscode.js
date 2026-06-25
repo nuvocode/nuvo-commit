@@ -15,6 +15,8 @@ module.exports = {
   workspace: {
     getConfiguration: jest.fn(() => ({
       get: jest.fn((key, defaultValue) => defaultValue),
+      inspect: jest.fn(() => undefined),
+      update: jest.fn(),
     })),
     workspaceFolders: [
       {
@@ -30,6 +32,11 @@ module.exports = {
   commands: {
     registerCommand: jest.fn(),
     executeCommand: jest.fn(),
+  },
+  ConfigurationTarget: {
+    Global: 1,
+    Workspace: 2,
+    WorkspaceFolder: 3,
   },
   extensions: {
     getExtension: jest.fn(),

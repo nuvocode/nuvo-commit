@@ -23,8 +23,23 @@ import { optimizeDiff } from "./utils/optimizeDiff";
 
 const execFileAsync = promisify(execFile);
 
-/** Key under which the cloud provider API key is stored in SecretStorage. */
-const API_KEY_SECRET = "nuvoCommit.apiKey";
+const PROVIDER_DEFAULTS: Record<string, { model: string; endpoint: string }> = {
+  ollama: {
+    model: "qwen3:4b",
+    endpoint: "http://localhost:11434/api/generate",
+  },
+  openai: {
+    model: "gpt-4o-mini",
+    endpoint: "",
+  },
+  anthropic: {
+    model: "claude-3-5-sonnet-20241022",
+    endpoint: "",
+  },
+};
+
+/** Legacy key kept as fallback for users upgrading from older versions. */
+const LEGACY_API_KEY_SECRET = "nuvoCommit.apiKey";
 
 /** Set during `activate`; the only handle to VS Code's encrypted storage. */
 let secretStorage: vscode.SecretStorage | undefined;
@@ -43,14 +58,75 @@ interface Settings {
   requestTimeoutMs: number;
 }
 
+export function getProviderSettingKey(
+  provider: string,
+  setting: "model" | "endpoint",
+): string {
+  return `${provider}.${setting}`;
+}
+
+export function getApiKeySecret(provider: string): string {
+  return `nuvoCommit.${provider}.apiKey`;
+}
+
+function getProviderDefaults(provider: string): {
+  model: string;
+  endpoint: string;
+} {
+  return PROVIDER_DEFAULTS[provider] ?? PROVIDER_DEFAULTS.ollama;
+}
+
+function readConfiguredString(
+  cfg: vscode.WorkspaceConfiguration,
+  key: string,
+): string | undefined {
+  if (typeof cfg.inspect === "function") {
+    const inspected = cfg.inspect<string>(key);
+    for (const value of [
+      inspected?.workspaceFolderValue,
+      inspected?.workspaceValue,
+      inspected?.globalValue,
+    ]) {
+      if (typeof value === "string") return value;
+    }
+    return undefined;
+  }
+
+  return cfg.get<string | undefined>(key, undefined);
+}
+
+function readProviderStringSetting(
+  cfg: vscode.WorkspaceConfiguration,
+  provider: string,
+  setting: "model" | "endpoint",
+  defaultValue: string,
+): string {
+  return (
+    readConfiguredString(cfg, getProviderSettingKey(provider, setting)) ??
+    defaultValue
+  );
+}
+
 export function readSettings(): Settings {
   const cfg = vscode.workspace.getConfiguration("nuvoCommit");
+  const provider = cfg.get<string>("provider", "ollama");
+  const defaults = getProviderDefaults(provider);
+  const legacyModel = readConfiguredString(cfg, "model");
+  const legacyEndpoint = readConfiguredString(cfg, "endpoint");
+
   return {
-    provider: cfg.get<string>("provider", "ollama"),
-    model: cfg.get<string>("model", "qwen3:4b"),
-    endpoint: cfg.get<string>(
+    provider,
+    model: readProviderStringSetting(
+      cfg,
+      provider,
+      "model",
+      legacyModel ?? defaults.model,
+    ),
+    endpoint: readProviderStringSetting(
+      cfg,
+      provider,
       "endpoint",
-      "http://localhost:11434/api/generate",
+      legacyEndpoint ?? defaults.endpoint,
     ),
     maxDiffChars: cfg.get<number>("maxDiffChars", 12000),
     autoCommit: cfg.get<boolean>("autoCommit", false),
@@ -69,9 +145,13 @@ export function readSettings(): Settings {
   };
 }
 
-async function getApiKey(): Promise<string> {
+async function getApiKey(provider: string): Promise<string> {
   if (!secretStorage) return "";
-  return (await secretStorage.get(API_KEY_SECRET)) ?? "";
+  return (
+    (await secretStorage.get(getApiKeySecret(provider))) ??
+    (await secretStorage.get(LEGACY_API_KEY_SECRET)) ??
+    ""
+  );
 }
 
 async function buildProvider(settings: Settings): Promise<Provider> {
@@ -80,7 +160,9 @@ async function buildProvider(settings: Settings): Promise<Provider> {
     throw new ProviderError(`Unknown provider: ${settings.provider}`);
   }
 
-  const apiKey = requiresApiKey(settings.provider) ? await getApiKey() : "";
+  const apiKey = requiresApiKey(settings.provider)
+    ? await getApiKey(settings.provider)
+    : "";
   const config = buildProviderConfig({
     provider: settings.provider,
     model: settings.model,
@@ -572,31 +654,83 @@ async function selectModel(): Promise<void> {
     selectedModel = picked.label;
   }
 
-  // Save to settings
-  const cfg = vscode.workspace.getConfiguration("nuvoCommit");
-  await cfg.update("model", selectedModel, vscode.ConfigurationTarget.Global);
+  await updateProviderModel(settings.provider, selectedModel);
   vscode.window.showInformationMessage(`Model set to: ${selectedModel}`);
+}
+
+export async function updateProviderModel(
+  provider: string,
+  model: string,
+): Promise<void> {
+  const cfg = vscode.workspace.getConfiguration("nuvoCommit");
+  await cfg.update(
+    getProviderSettingKey(provider, "model"),
+    model,
+    vscode.ConfigurationTarget.Global,
+  );
+}
+
+interface ApiKeyProviderItem extends vscode.QuickPickItem {
+  provider: "openai" | "anthropic";
+}
+
+async function pickApiKeyProvider(
+  activeProvider: string,
+): Promise<"openai" | "anthropic" | undefined> {
+  if (activeProvider === "openai" || activeProvider === "anthropic") {
+    return activeProvider;
+  }
+
+  const picked = await vscode.window.showQuickPick<ApiKeyProviderItem>(
+    [
+      {
+        label: "OpenAI",
+        description: "Save an OpenAI API key",
+        provider: "openai",
+      },
+      {
+        label: "Anthropic",
+        description: "Save an Anthropic API key",
+        provider: "anthropic",
+      },
+    ],
+    {
+      placeHolder: "Select cloud provider for API key",
+      ignoreFocusOut: true,
+    },
+  );
+
+  return picked?.provider;
 }
 
 async function setApiKey(): Promise<void> {
   if (!secretStorage) return;
 
+  const activeProvider = readSettings().provider;
+  const provider = await pickApiKeyProvider(activeProvider);
+  if (!provider) return;
+
   const input = await vscode.window.showInputBox({
-    prompt: "Enter the API key for your cloud provider (leave empty to clear).",
+    prompt: `Enter the API key for ${provider} (leave empty to clear).`,
     password: true,
     ignoreFocusOut: true,
   });
   if (input === undefined) return; // cancelled
 
   const trimmed = input.trim();
+  const secretKey = getApiKeySecret(provider);
   if (trimmed.length === 0) {
-    await secretStorage.delete(API_KEY_SECRET);
-    vscode.window.showInformationMessage("Nuvo Commit: API key cleared.");
+    await secretStorage.delete(secretKey);
+    vscode.window.showInformationMessage(
+      `Nuvo Commit: ${provider} API key cleared.`,
+    );
     return;
   }
 
-  await secretStorage.store(API_KEY_SECRET, trimmed);
-  vscode.window.showInformationMessage("Nuvo Commit: API key saved securely.");
+  await secretStorage.store(secretKey, trimmed);
+  vscode.window.showInformationMessage(
+    `Nuvo Commit: ${provider} API key saved securely.`,
+  );
 }
 
 /**
@@ -607,13 +741,21 @@ async function migrateApiKey(): Promise<void> {
   if (!secretStorage) return;
 
   const cfg = vscode.workspace.getConfiguration("nuvoCommit");
+  const provider = cfg.get<string>("provider", "ollama");
+  const targetSecret = requiresApiKey(provider)
+    ? getApiKeySecret(provider)
+    : LEGACY_API_KEY_SECRET;
   const legacy = cfg.get<string>("apiKey", "");
-  if (!legacy || legacy.trim().length === 0) return;
+  const legacySecret = await secretStorage.get(LEGACY_API_KEY_SECRET);
+  const keyToMigrate = legacy.trim() || legacySecret?.trim();
+  if (!keyToMigrate) return;
 
-  const existing = await secretStorage.get(API_KEY_SECRET);
+  const existing = await secretStorage.get(targetSecret);
   if (!existing) {
-    await secretStorage.store(API_KEY_SECRET, legacy.trim());
+    await secretStorage.store(targetSecret, keyToMigrate);
   }
+
+  if (!legacy || legacy.trim().length === 0) return;
 
   // Clear the plaintext setting from every scope it might be defined in.
   for (const target of [

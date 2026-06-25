@@ -53,10 +53,11 @@
 
 ### Setting an API key (cloud providers)
 
-API keys are stored securely — **not** in `settings.json`.
+API keys are stored securely per cloud provider — **not** in `settings.json`.
 
 1. Run **Nuvo Commit: Set API Key**.
-2. Paste your key into the masked input (leave it empty to clear a stored key).
+2. If Ollama is active, choose OpenAI or Anthropic.
+3. Paste your key into the masked input (leave it empty to clear that provider's key).
 
 If you previously set `nuvoCommit.apiKey` in settings, it is migrated into secure
 storage automatically and removed from `settings.json` on first activation.
@@ -65,54 +66,63 @@ storage automatically and removed from `settings.json` on first activation.
 
 Configure in VS Code Settings (`Cmd+,`) under **Nuvo Commit**:
 
-| Setting | Default | Description |
-|---|---|---|
-| `nuvoCommit.autoAccept` | `true` | Skip the approval dialog and fill the commit message directly. |
-| `nuvoCommit.autoCommit` | `false` | Run `git commit` automatically after accepting. |
-| `nuvoCommit.maxDiffChars` | `12000` | Maximum diff characters sent to the model; larger diffs are truncated. |
-| `nuvoCommit.provider` | `ollama` | AI provider: `ollama`, `openai`, or `anthropic`. |
-| `nuvoCommit.endpoint` | Ollama URL | API endpoint. Leave empty for cloud providers to use their defaults. |
-| `nuvoCommit.requestTimeoutMs` | `30000` | Milliseconds to wait for a provider response before aborting. |
-| `nuvoCommit.model` | `qwen3:4b` | Model identifier passed to the provider. |
+| Setting                         | Default                      | Description                                                            |
+| ------------------------------- | ---------------------------- | ---------------------------------------------------------------------- |
+| `nuvoCommit.autoAccept`         | `true`                       | Skip the approval dialog and fill the commit message directly.         |
+| `nuvoCommit.autoCommit`         | `false`                      | Run `git commit` automatically after accepting.                        |
+| `nuvoCommit.maxDiffChars`       | `12000`                      | Maximum diff characters sent to the model; larger diffs are truncated. |
+| `nuvoCommit.provider`           | `ollama`                     | AI provider: `ollama`, `openai`, or `anthropic`.                       |
+| `nuvoCommit.ollama.endpoint`    | Ollama URL                   | Ollama API endpoint.                                                   |
+| `nuvoCommit.ollama.model`       | `qwen3:4b`                   | Ollama model identifier.                                               |
+| `nuvoCommit.openai.endpoint`    | `""`                         | OpenAI endpoint. Leave empty to use the default OpenAI endpoint.       |
+| `nuvoCommit.openai.model`       | `gpt-4o-mini`                | OpenAI model identifier.                                               |
+| `nuvoCommit.anthropic.endpoint` | `""`                         | Anthropic endpoint. Leave empty to use the default Anthropic endpoint. |
+| `nuvoCommit.anthropic.model`    | `claude-3-5-sonnet-20241022` | Anthropic model identifier.                                            |
+| `nuvoCommit.requestTimeoutMs`   | `30000`                      | Milliseconds to wait for a provider response before aborting.          |
 
-> The deprecated `nuvoCommit.apiKey` setting is kept only for one-time migration —
-> use the **Set API Key** command instead.
+> Deprecated fallback settings `nuvoCommit.apiKey`, `nuvoCommit.endpoint`, and
+> `nuvoCommit.model` are kept for upgrades. New configurations should use the
+> provider-specific settings above.
 
 ### Example configurations
 
 **Ollama (local):**
+
 ```json
 {
   "nuvoCommit.provider": "ollama",
-  "nuvoCommit.endpoint": "http://localhost:11434/api/generate",
-  "nuvoCommit.model": "qwen3:4b"
+  "nuvoCommit.ollama.endpoint": "http://localhost:11434/api/generate",
+  "nuvoCommit.ollama.model": "qwen3:4b"
 }
 ```
 
 **OpenAI (cloud):** set the key via **Nuvo Commit: Set API Key**, then:
+
 ```json
 {
   "nuvoCommit.provider": "openai",
-  "nuvoCommit.endpoint": "",
-  "nuvoCommit.model": "gpt-4o-mini"
+  "nuvoCommit.openai.endpoint": "",
+  "nuvoCommit.openai.model": "gpt-4o-mini"
 }
 ```
 
 **Anthropic (cloud):** set the key via **Nuvo Commit: Set API Key**, then:
+
 ```json
 {
   "nuvoCommit.provider": "anthropic",
-  "nuvoCommit.endpoint": "",
-  "nuvoCommit.model": "claude-3-5-sonnet-20241022"
+  "nuvoCommit.anthropic.endpoint": "",
+  "nuvoCommit.anthropic.model": "claude-3-5-sonnet-20241022"
 }
 ```
 
 **Custom OpenAI-compatible endpoint:**
+
 ```json
 {
   "nuvoCommit.provider": "openai",
-  "nuvoCommit.endpoint": "http://localhost:1234/v1/chat/completions",
-  "nuvoCommit.model": "local-model"
+  "nuvoCommit.openai.endpoint": "http://localhost:1234/v1/chat/completions",
+  "nuvoCommit.openai.model": "local-model"
 }
 ```
 
