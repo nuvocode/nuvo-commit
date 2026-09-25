@@ -27,34 +27,33 @@
    - Name: `OVSX_PAT`
    - Value: Paste the token
 
-## Workflow Flow
+## Releasing
 
-1. **Push to master** triggers the workflow
-2. **CI wait**: Waits for test and build workflows to complete
-3. **Build**: Compiles and packages the extension
-4. **Publish**: Automatically publishes to VS Code Marketplace
+Publishing runs only when a `vX.Y.Z` tag is pushed. Pushes to `master` do not publish.
 
-## Manual Trigger
+1. Add a `## [X.Y.Z] - YYYY-MM-DD` section to `CHANGELOG.md`.
+2. Bump the version and tag it:
 
-- GitHub repository → Actions → "Publish VS Code Extension" → "Run workflow"
+   ```bash
+   npm version X.Y.Z --no-git-tag-version
+   git commit -am "chore: release X.Y.Z"
+   git tag vX.Y.Z
+   git push origin master vX.Y.Z
+   ```
 
-## Version Management
+The workflow then:
 
-Update the `version` field in `package.json` before each publish:
+1. Fails if the tag does not match `package.json` or `CHANGELOG.md` has no section for it
+2. Lints, runs unit tests and packages `nuvo-commit-vX.Y.Z.vsix`
+3. Publishes to the VS Code Marketplace (and Open VSX when `OVSX_PAT` is set)
+4. Creates the GitHub Release with the CHANGELOG section as notes and the `.vsix` attached
 
-```json
-{
-  "version": "0.1.1" // Increment minor or patch version
-}
-```
+Re-running a failed release is safe: already published versions are skipped.
 
 ## Troubleshooting
 
-### Workflow waiting for CI but no CI exists
-- Remove the `wait-for-ci` job if you haven't created CI workflows yet
-- Or update `check-name` values to match your workflow names
-
 ### Publish errors
+
 - Verify VSCE_PAT secret is set correctly
 - Check token hasn't expired
 - Confirm publisher name (`nuvocode`) is registered on marketplace
