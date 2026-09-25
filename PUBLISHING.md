@@ -19,13 +19,12 @@ GitHub:
 2. Add environment secrets `AZURE_CLIENT_ID` and `AZURE_TENANT_ID` with the
    identity's client and tenant IDs
 
-Marketplace:
+Marketplace (already done):
 
-1. Run the **Debug Identity** workflow (Actions → Run workflow) and copy the
-   `"id"` from its output. This is the identity's Azure DevOps user ID.
-2. On https://marketplace.visualstudio.com/manage/publishers/nuvocode, add that
-   ID under Members as **Contributor**.
-3. Delete `.github/workflows/debug-identity.yml`.
+- The identity's Azure DevOps user ID `a81f7864-617a-637f-83b5-60ba3141de3a` is a
+  **Contributor** on the `nuvocode` publisher. To look it up again, run
+  `az rest -u https://app.vssps.visualstudio.com/_apis/profile/profiles/me --resource 499b84ac-1321-427f-aa17-267ca6975798`
+  after `azure/login` in the `marketplace-publish` environment.
 
 ### 2. Open VSX Registry Token (Optional)
 
