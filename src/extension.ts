@@ -966,6 +966,28 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("nuvoCommit.selectModel", selectModel),
     vscode.commands.registerCommand("nuvoCommit.setApiKey", setApiKey),
   );
+
+  // Always-visible provider/model; click opens the settings picker (Provider is its first item).
+  const status = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Right,
+  );
+  status.command = "nuvoCommit.settings";
+  status.tooltip = "Nuvo Commit: switch provider or model";
+  const refreshStatus = () => {
+    status.text = statusBarText(readSettings());
+    status.show();
+  };
+  refreshStatus();
+  context.subscriptions.push(
+    status,
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration("nuvoCommit")) refreshStatus();
+    }),
+  );
+}
+
+export function statusBarText(settings: Settings): string {
+  return `$(sparkle) ${providerLabel(settings.provider)}: ${settings.model}`;
 }
 
 export function deactivate(): void {}
