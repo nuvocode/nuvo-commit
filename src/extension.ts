@@ -405,7 +405,7 @@ async function runCommand(): Promise<void> {
   const optimized = optimizeDiff(staged.diff, settings.maxDiffChars);
   if (optimized.includedFiles.length === 0) {
     vscode.window.showWarningMessage(
-      `Nuvo Commit: all ${useWorkingDir ? "unstaged" : "staged"} files are ignored (lock/generated/binary).`,
+      `Nuvo Commit: all ${useWorkingDir ? "unstaged" : "staged"} files are ignored (lock/generated).`,
     );
     return;
   }
@@ -517,7 +517,7 @@ async function runPullRequestContentCommand(): Promise<void> {
   const optimized = optimizeDiff(pullRequestDiff.diff, settings.maxDiffChars);
   if (optimized.includedFiles.length === 0) {
     vscode.window.showWarningMessage(
-      "Nuvo Commit: all pull request files are ignored (lock/generated/binary).",
+      "Nuvo Commit: all pull request files are ignored (lock/generated).",
     );
     return;
   }
