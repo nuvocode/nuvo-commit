@@ -116,3 +116,19 @@ describe("optimizeDiff", () => {
     expect(result.diff.length).toBeLessThanOrEqual(300);
   });
 });
+
+describe("optimizeDiff binary files", () => {
+  it("keeps binary hunks so media-only commits can be described", () => {
+    const diff = [
+      "diff --git a/images/logo.png b/images/logo.png",
+      "new file mode 100644",
+      "index 0000000..abc1234",
+      "Binary files /dev/null and b/images/logo.png differ",
+    ].join("\n");
+    const result = optimizeDiff(diff, 10_000);
+    expect(result.includedFiles).toEqual(["images/logo.png"]);
+    expect(result.diff).toContain(
+      "Binary files /dev/null and b/images/logo.png differ",
+    );
+  });
+});
