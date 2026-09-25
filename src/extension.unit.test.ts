@@ -7,6 +7,7 @@ import {
   getApiKeySecret,
   getProviderSettingKey,
   openGitHubPullRequestCreate,
+  orderBaseBranches,
   readSettings,
   updateActiveProvider,
   updateProviderEndpoint,
@@ -392,5 +393,20 @@ describe("extension helpers", () => {
     ).resolves.toBe(false);
 
     expect(vscode.commands.executeCommand).not.toHaveBeenCalled();
+  });
+});
+
+describe("orderBaseBranches", () => {
+  it("moves the default branch to the top", () => {
+    expect(orderBaseBranches(["develop", "master", "x"], "master")).toEqual([
+      "master",
+      "develop",
+      "x",
+    ]);
+  });
+
+  it("keeps order when the default is missing or unknown", () => {
+    expect(orderBaseBranches(["a", "b"])).toEqual(["a", "b"]);
+    expect(orderBaseBranches(["a", "b"], "main")).toEqual(["a", "b"]);
   });
 });
