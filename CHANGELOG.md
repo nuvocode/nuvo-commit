@@ -5,6 +5,27 @@ All notable changes to the **Nuvo Commit** extension are documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-09-25
+
+### Added
+
+- **Generate Pull Request Content** now asks for the target branch. The default
+  (`nuvoCommit.pullRequestBaseBranch`, then `origin/HEAD`, `main`, `master`) is
+  listed first, so pressing Enter keeps the previous behavior.
+- Status bar item showing the active provider and model. Click it to switch
+  provider, model, endpoint or API key.
+
+### Changed
+
+- Settings are grouped into sections: General, Pull Requests, Provider, Ollama,
+  OpenAI, Anthropic and Deprecated. Setting keys are unchanged.
+- The extension activates on startup so the status bar item is always visible.
+
+### Fixed
+
+- Commit messages can be generated when only media or other binary files
+  changed; the file path and change type are sent to the model.
+
 ## [1.2.0] - 2026-06-25
 
 ### Added
@@ -99,6 +120,7 @@ the extension for production use.
 - `Nuvo Commit: Select Model` command with automatic model discovery for Ollama.
 - `autoAccept` and `autoCommit` settings.
 
+[1.3.0]: https://github.com/nuvocode/nuvo-commit/releases/tag/v1.3.0
 [1.2.0]: https://github.com/nuvocode/nuvo-commit/releases/tag/v1.2.0
 [1.1.1]: https://github.com/nuvocode/nuvo-commit/releases/tag/v1.1.1
 [1.0.0]: https://github.com/nuvocode/nuvo-commit/releases/tag/v1.0.0
