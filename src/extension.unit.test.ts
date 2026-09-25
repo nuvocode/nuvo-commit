@@ -9,18 +9,26 @@ import {
   openGitHubPullRequestCreate,
   orderBaseBranches,
   readSettings,
+  statusBarText,
   updateActiveProvider,
   updateProviderEndpoint,
   updateProviderModel,
 } from "./extension";
 
-const packageManifest = packageJson as {
+const packageManifest = packageJson as unknown as {
   contributes: {
     configuration: {
+      title: string;
       properties: Record<string, { default?: unknown; type?: string }>;
-    };
+    }[];
   };
 };
+
+const properties: Record<string, { default?: unknown; type?: string }> =
+  Object.assign(
+    {},
+    ...packageManifest.contributes.configuration.map((c) => c.properties),
+  );
 
 function mockNuvoConfig(values: Record<string, unknown>) {
   const update = jest.fn();
@@ -71,10 +79,7 @@ describe("extension helpers", () => {
   });
 
   it("should expose includeBody as a boolean checkbox setting", () => {
-    const setting =
-      packageManifest.contributes.configuration.properties[
-        "nuvoCommit.includeBody"
-      ];
+    const setting = properties["nuvoCommit.includeBody"];
 
     expect(setting).toEqual(
       expect.objectContaining({
@@ -85,8 +90,6 @@ describe("extension helpers", () => {
   });
 
   it("should expose pull request settings", () => {
-    const properties = packageManifest.contributes.configuration.properties;
-
     expect(properties["nuvoCommit.pullRequestBaseBranch"]).toEqual(
       expect.objectContaining({
         type: "string",
@@ -108,8 +111,6 @@ describe("extension helpers", () => {
   });
 
   it("should expose provider-specific settings", () => {
-    const properties = packageManifest.contributes.configuration.properties;
-
     expect(properties["nuvoCommit.ollama.model"]).toEqual(
       expect.objectContaining({ type: "string", default: "qwen3:4b" }),
     );
@@ -393,6 +394,29 @@ describe("extension helpers", () => {
     ).resolves.toBe(false);
 
     expect(vscode.commands.executeCommand).not.toHaveBeenCalled();
+  });
+});
+
+describe("settings layout", () => {
+  it("groups settings into titled categories", () => {
+    expect(
+      packageManifest.contributes.configuration.map((c) => c.title),
+    ).toEqual([
+      "General",
+      "Pull Requests",
+      "Provider",
+      "Ollama",
+      "OpenAI",
+      "Anthropic",
+      "Deprecated",
+    ]);
+  });
+});
+
+describe("statusBarText", () => {
+  it("shows the active provider and model", () => {
+    mockNuvoConfig({ provider: "openai", "openai.model": "gpt-4o" });
+    expect(statusBarText(readSettings())).toBe("$(sparkle) OpenAI: gpt-4o");
   });
 });
 
