@@ -39,7 +39,6 @@ export function isIgnoredPath(path: string): boolean {
 interface FileHunk {
   path: string;
   body: string;
-  binary: boolean;
 }
 
 interface KeptHunk extends FileHunk {
@@ -58,9 +57,7 @@ function parseHunks(diff: string): FileHunk[] {
 
     const headerMatch = part.match(/^a\/(.+?) b\/(.+?)(?:\n|$)/);
     const path = headerMatch ? headerMatch[2] : "unknown";
-    const binary = /^Binary files .* differ$/m.test(part);
-
-    hunks.push({ path, body, binary });
+    hunks.push({ path, body });
   }
 
   return hunks;
@@ -81,7 +78,9 @@ export function optimizeDiff(diff: string, maxChars: number): OptimizeResult {
   const kept: KeptHunk[] = [];
 
   for (const hunk of hunks) {
-    if (hunk.binary || isIgnoredPath(hunk.path)) {
+    // ponytail: binary hunks are header-only (no --binary), so they stay; the
+    // path + "new file mode" is enough for the model to name media-only commits.
+    if (isIgnoredPath(hunk.path)) {
       skippedFiles.push(hunk.path);
       continue;
     }

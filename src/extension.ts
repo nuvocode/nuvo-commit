@@ -3,10 +3,13 @@ import { promisify } from "util";
 import * as vscode from "vscode";
 
 import {
+  getCurrentBranch,
   getPullRequestDiff,
   getStagedDiff,
   getWorkingDiff,
   GitError,
+  listBaseBranchCandidates,
+  resolvePullRequestBaseBranch,
 } from "./git/diff";
 import {
   Provider,
@@ -405,7 +408,7 @@ async function runCommand(): Promise<void> {
   const optimized = optimizeDiff(staged.diff, settings.maxDiffChars);
   if (optimized.includedFiles.length === 0) {
     vscode.window.showWarningMessage(
-      `Nuvo Commit: all ${useWorkingDir ? "unstaged" : "staged"} files are ignored (lock/generated/binary).`,
+      `Nuvo Commit: all ${useWorkingDir ? "unstaged" : "staged"} files are ignored (lock/generated).`,
     );
     return;
   }
@@ -476,6 +479,42 @@ async function runCommand(): Promise<void> {
   }
 }
 
+export function orderBaseBranches(
+  branches: string[],
+  defaultBranch?: string,
+): string[] {
+  if (!defaultBranch || !branches.includes(defaultBranch)) return branches;
+  return [defaultBranch, ...branches.filter((b) => b !== defaultBranch)];
+}
+
+/** Asks for the PR target; the resolved default (setting → origin/HEAD → main → master) is listed first. */
+async function pickPullRequestBaseBranch(
+  cwd: string,
+  configured: string,
+): Promise<string | undefined> {
+  const current = await getCurrentBranch(cwd);
+  const defaultBranch = await resolvePullRequestBaseBranch(
+    cwd,
+    configured,
+  ).catch(() => undefined);
+  const branches = orderBaseBranches(
+    await listBaseBranchCandidates(cwd, current),
+    defaultBranch,
+  );
+  if (branches.length === 0) {
+    throw new GitError("No branches to compare against");
+  }
+
+  const picked = await vscode.window.showQuickPick(
+    branches.map((name) => ({
+      label: name,
+      description: name === defaultBranch ? "default" : undefined,
+    })),
+    { placeHolder: `Target branch for ${current}` },
+  );
+  return picked?.label;
+}
+
 async function runPullRequestContentCommand(): Promise<void> {
   const cwd = getRepoRoot();
   if (!cwd) {
@@ -496,9 +535,14 @@ async function runPullRequestContentCommand(): Promise<void> {
 
   let pullRequestDiff;
   try {
-    pullRequestDiff = await getPullRequestDiff(
+    const baseBranch = await pickPullRequestBaseBranch(
       cwd,
       settings.pullRequestBaseBranch,
+    );
+    if (!baseBranch) return;
+    pullRequestDiff = await getPullRequestDiff(
+      cwd,
+      baseBranch,
       settings.pullRequestIncludeCommitList,
     );
   } catch (err) {
@@ -517,7 +561,7 @@ async function runPullRequestContentCommand(): Promise<void> {
   const optimized = optimizeDiff(pullRequestDiff.diff, settings.maxDiffChars);
   if (optimized.includedFiles.length === 0) {
     vscode.window.showWarningMessage(
-      "Nuvo Commit: all pull request files are ignored (lock/generated/binary).",
+      "Nuvo Commit: all pull request files are ignored (lock/generated).",
     );
     return;
   }

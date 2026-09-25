@@ -144,6 +144,28 @@ export async function resolvePullRequestBaseBranch(
   throw new GitError("Could not resolve a pull request base branch");
 }
 
+/** Local then remote branches a PR could target, excluding `current` and remote HEAD aliases. */
+export async function listBaseBranchCandidates(
+  cwd: string,
+  current: string,
+): Promise<string[]> {
+  const out = await git(
+    ["for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes"],
+    cwd,
+  );
+  return splitLines(out)
+    .filter((ref) => !ref.endsWith("/HEAD"))
+    .filter(
+      (ref) =>
+        ref !== `refs/heads/${current}` &&
+        !(
+          ref.startsWith("refs/remotes/") &&
+          ref.split("/").slice(3).join("/") === current
+        ), // remote twin: refs/remotes/<remote>/<current>
+    )
+    .map((ref) => ref.replace(/^refs\/(heads|remotes)\//, ""));
+}
+
 export async function getPullRequestDiff(
   cwd: string,
   configuredBaseBranch?: string,

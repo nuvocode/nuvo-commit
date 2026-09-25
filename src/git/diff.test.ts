@@ -4,6 +4,7 @@ import {
   getStagedDiff,
   getWorkingDiff,
   GitError,
+  listBaseBranchCandidates,
   resolvePullRequestBaseBranch,
 } from "./diff";
 
@@ -204,5 +205,34 @@ describe("getPullRequestDiff", () => {
       expect.anything(),
       expect.anything(),
     );
+  });
+});
+
+describe("listBaseBranchCandidates", () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it("lists local and remote branches without HEAD aliases or the current branch", async () => {
+    routeGit({
+      "for-each-ref --format=%(refname) refs/heads refs/remotes": {
+        stdout: [
+          "refs/heads/master",
+          "refs/heads/develop",
+          "refs/heads/feature/x",
+          "refs/heads/other/feature/x",
+          "refs/remotes/origin/HEAD",
+          "refs/remotes/origin/master",
+          "refs/remotes/origin/feature/x",
+          "refs/remotes/origin/release/1.0",
+        ].join("\n"),
+      },
+    });
+
+    await expect(listBaseBranchCandidates(CWD, "feature/x")).resolves.toEqual([
+      "master",
+      "develop",
+      "other/feature/x",
+      "origin/master",
+      "origin/release/1.0",
+    ]);
   });
 });
