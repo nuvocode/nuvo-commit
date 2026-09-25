@@ -8,11 +8,15 @@ on:
 
 permissions:
   contents: write # create the GitHub Release
+  id-token: write # OIDC login to Azure for Marketplace publishing
 
 jobs:
   publish:
     name: Publish Extension
     runs-on: ubuntu-latest
+    # Must match the Azure federated credential subject:
+    # repo:nuvocode/nuvo-commit:environment:marketplace-publish
+    environment: marketplace-publish
     env:
       VERSION: ${{ github.ref_name }}
       OVSX_PAT: ${{ secrets.OVSX_PAT }}
@@ -58,10 +62,17 @@ jobs:
       - name: Package Extension
         run: npx --yes @vscode/vsce package --no-yarn -o "nuvo-commit-$VERSION.vsix"
 
+      # Marketplace no longer issues non-expiring PATs; publish as the
+      # `vscode-publisher` managed identity instead (a nuvocode publisher member).
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
       - name: Publish to VS Code Marketplace
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
-        run: npx --yes @vscode/vsce publish --packagePath "nuvo-commit-$VERSION.vsix" --skip-duplicate
+        run: npx --yes @vscode/vsce publish --packagePath "nuvo-commit-$VERSION.vsix" --skip-duplicate --azure-credential
 
       - name: Publish to Open VSX Registry
         if: env.OVSX_PAT != ''
