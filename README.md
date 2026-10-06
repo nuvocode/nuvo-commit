@@ -43,6 +43,9 @@
 3. Run **Nuvo Commit: Generate Commit Message**.
 4. Review and accept the suggested message.
 
+> **Tip:** With the Source Control view focused, press `Cmd+Alt+G` /
+> `Ctrl+Alt+G` to generate. Change it under **Keyboard Shortcuts**.
+
 ### Selecting a model
 
 1. Run **Nuvo Commit: Select Model**.
