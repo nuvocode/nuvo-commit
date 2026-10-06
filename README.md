@@ -73,6 +73,7 @@ Settings (`Cmd+,`) under **Nuvo Commit**:
 | `nuvoCommit.autoAccept`         | `true`                       | Skip the approval dialog and fill the commit message directly.         |
 | `nuvoCommit.autoCommit`         | `false`                      | Run `git commit` automatically after accepting.                        |
 | `nuvoCommit.maxDiffChars`       | `12000`                      | Maximum diff characters sent to the model; larger diffs are truncated. |
+| `nuvoCommit.style`              | `conventional`               | Header format: `conventional`, `gitmoji` or `plain`.                   |
 | `nuvoCommit.provider`           | `ollama`                     | AI provider: `ollama`, `openai`, or `anthropic`.                       |
 | `nuvoCommit.ollama.endpoint`    | Ollama URL                   | Ollama API endpoint.                                                   |
 | `nuvoCommit.ollama.model`       | `qwen3:4b`                   | Ollama model identifier.                                               |

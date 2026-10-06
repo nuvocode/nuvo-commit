@@ -23,6 +23,7 @@ import { CommitMessageOptions } from "./commitMessage";
 import { PullRequestContent, PullRequestContentOptions } from "./pullRequest";
 import { buildProviderConfig, requiresApiKey } from "./providers/config";
 import { optimizeDiff } from "./utils/optimizeDiff";
+import { applyMessageStyle, MessageStyle } from "./utils/messageStyle";
 
 const execFileAsync = promisify(execFile);
 
@@ -55,6 +56,7 @@ interface Settings {
   autoCommit: boolean;
   autoAccept: boolean;
   includeBody: boolean;
+  style: MessageStyle;
   pullRequestBaseBranch: string;
   pullRequestOpenCreateView: boolean;
   pullRequestIncludeCommitList: boolean;
@@ -135,6 +137,7 @@ export function readSettings(): Settings {
     autoCommit: cfg.get<boolean>("autoCommit", false),
     autoAccept: cfg.get<boolean>("autoAccept", true),
     includeBody: cfg.get<boolean>("includeBody", false),
+    style: cfg.get<MessageStyle>("style", "conventional"),
     pullRequestBaseBranch: cfg.get<string>("pullRequestBaseBranch", ""),
     pullRequestOpenCreateView: cfg.get<boolean>(
       "pullRequestOpenCreateView",
@@ -187,8 +190,12 @@ async function generateOnce(
   provider: Provider,
   diff: string,
   options: CommitMessageOptions,
+  style: MessageStyle,
 ): Promise<string> {
-  return provider.generateCommitMessage(diff, options);
+  return applyMessageStyle(
+    await provider.generateCommitMessage(diff, options),
+    style,
+  );
 }
 
 async function generatePullRequestContentOnce(
@@ -429,7 +436,8 @@ async function runCommand(): Promise<void> {
         title: `Nuvo Commit: generating with ${settings.model}…`,
         cancellable: false,
       },
-      () => generateOnce(provider, optimized.diff, commitOptions),
+      () =>
+        generateOnce(provider, optimized.diff, commitOptions, settings.style),
     );
   } catch (err) {
     const msg = err instanceof ProviderError ? err.message : String(err);
@@ -458,7 +466,13 @@ async function runCommand(): Promise<void> {
               title: `Nuvo Commit: regenerating with ${settings.model}…`,
               cancellable: false,
             },
-            () => generateOnce(provider, optimized.diff, commitOptions),
+            () =>
+              generateOnce(
+                provider,
+                optimized.diff,
+                commitOptions,
+                settings.style,
+              ),
           );
         } catch (err) {
           const msg = err instanceof ProviderError ? err.message : String(err);

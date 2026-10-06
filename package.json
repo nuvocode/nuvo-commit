@@ -21,7 +21,8 @@
     "openai",
     "anthropic",
     "local-first",
-    "multi-provider"
+    "multi-provider",
+    "gitmoji"
   ],
   "galleryBanner": {
     "color": "#1e1e2e",
@@ -101,6 +102,22 @@
             "minimum": 1000,
             "order": 4,
             "description": "Maximum diff characters sent to the model. Diffs above this are truncated."
+          },
+          "nuvoCommit.style": {
+            "type": "string",
+            "enum": [
+              "conventional",
+              "gitmoji",
+              "plain"
+            ],
+            "enumDescriptions": [
+              "Conventional Commits, e.g. `feat(auth): add login`.",
+              "gitmoji, e.g. `✨ auth: add login`.",
+              "No type prefix, e.g. `Add login`."
+            ],
+            "default": "conventional",
+            "order": 5,
+            "description": "Format of the commit message header."
           }
         }
       },
