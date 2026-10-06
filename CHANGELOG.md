@@ -36,6 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`✨ auth: add login`, with 💥 for breaking changes) or `plain` (`Add login`).
 - `nuvoCommit.gitmoji` setting to override the emoji per type (`breaking` for
   `!` headers).
+- `Cmd+Alt+G` / `Ctrl+Alt+G` generates a commit message while the Source
+  Control view is focused.
 
 ### Changed
 

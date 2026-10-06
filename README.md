@@ -61,6 +61,9 @@
 
 You can also click the ✨ button in the Source Control title bar.
 
+> **Tip:** With the Source Control view focused, press `Cmd+Alt+G` /
+> `Ctrl+Alt+G` to generate. Change it under **Keyboard Shortcuts**.
+
 ### Generating pull request content
 
 1. Click the pull request button in the Source Control title bar, or run

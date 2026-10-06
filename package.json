@@ -67,6 +67,14 @@
         "title": "Nuvo Commit: Check Setup"
       }
     ],
+    "keybindings": [
+      {
+        "command": "nuvoCommit.generate",
+        "key": "ctrl+alt+g",
+        "mac": "cmd+alt+g",
+        "when": "focusedView == workbench.scm"
+      }
+    ],
     "menus": {
       "scm/title": [
         {
