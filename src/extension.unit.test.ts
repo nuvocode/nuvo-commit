@@ -4,6 +4,7 @@ import packageJson from "../package.json";
 import {
   buildGitCommitArgs,
   configureProviderSettings,
+  generateSuggestions,
   getApiKeySecret,
   getProviderSettingKey,
   openGitHubPullRequestCreate,
@@ -443,5 +444,52 @@ describe("orderBaseBranches", () => {
   it("keeps order when the default is missing or unknown", () => {
     expect(orderBaseBranches(["a", "b"])).toEqual(["a", "b"]);
     expect(orderBaseBranches(["a", "b"], "main")).toEqual(["a", "b"]);
+  });
+});
+
+describe("generateSuggestions", () => {
+  const providerReturning = (...results: (string | Error)[]) => {
+    const generateCommitMessage = jest.fn();
+    for (const r of results) {
+      if (r instanceof Error) generateCommitMessage.mockRejectedValueOnce(r);
+      else generateCommitMessage.mockResolvedValueOnce(r);
+    }
+    return { generateCommitMessage };
+  };
+
+  it("makes a single call with the default temperature", async () => {
+    const provider = providerReturning("feat: a");
+    expect(await generateSuggestions(provider, "diff", {}, 1)).toEqual([
+      "feat: a",
+    ]);
+    expect(provider.generateCommitMessage).toHaveBeenCalledWith("diff", {});
+  });
+
+  it("drops duplicates and failed calls", async () => {
+    const provider = providerReturning(
+      "feat: a",
+      new Error("timeout"),
+      "feat: a",
+      "chore: update staged changes",
+      "fix: b",
+    );
+    expect(await generateSuggestions(provider, "diff", {}, 5)).toEqual([
+      "feat: a",
+      "fix: b",
+    ]);
+    expect(provider.generateCommitMessage).toHaveBeenNthCalledWith(1, "diff", {
+      temperature: 0.8,
+      hint: undefined,
+    });
+    expect(provider.generateCommitMessage.mock.calls[1][1].hint).toContain(
+      "effect for users",
+    );
+  });
+
+  it("throws the first error when every call fails", async () => {
+    const provider = providerReturning(new Error("down"), new Error("down 2"));
+    await expect(generateSuggestions(provider, "diff", {}, 2)).rejects.toThrow(
+      "down",
+    );
   });
 });

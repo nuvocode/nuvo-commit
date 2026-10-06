@@ -73,6 +73,7 @@ interface Settings {
   language: string;
   ticketId: TicketIdMode;
   ticketPattern: string;
+  suggestions: number;
   pullRequestBaseBranch: string;
   pullRequestOpenCreateView: boolean;
   pullRequestIncludeCommitList: boolean;
@@ -160,6 +161,7 @@ export function readSettings(): Settings {
     language: cfg.get<string>("language", "English"),
     ticketId: cfg.get<TicketIdMode>("ticketId", "off"),
     ticketPattern: cfg.get<string>("ticketPattern", DEFAULT_TICKET_PATTERN),
+    suggestions: Math.min(Math.max(cfg.get<number>("suggestions", 1), 1), 5),
     pullRequestBaseBranch: cfg.get<string>("pullRequestBaseBranch", ""),
     pullRequestOpenCreateView: cfg.get<boolean>(
       "pullRequestOpenCreateView",
@@ -208,12 +210,45 @@ function getRepoRoot(): string | undefined {
   return folders[0].uri.fsPath;
 }
 
-async function generateOnce(
-  provider: Provider,
+/** Angles for the extra suggestions; the first one uses the plain prompt. */
+const SUGGESTION_HINTS = [
+  undefined,
+  "Focus the subject on the effect for users of the code, not on the implementation.",
+  "Name the main function, class or module that changed in the subject.",
+  "Make the subject as short as possible.",
+  "Mention the most important detail of the change in the subject.",
+];
+
+/**
+ * Generates `count` messages in parallel and drops duplicates. Each suggestion
+ * gets its own hint and a higher temperature so they differ from each other.
+ */
+export async function generateSuggestions(
+  provider: Pick<Provider, "generateCommitMessage">,
   diff: string,
   options: CommitMessageOptions,
-): Promise<string> {
-  return provider.generateCommitMessage(diff, options);
+  count: number,
+): Promise<string[]> {
+  if (count <= 1) return [await provider.generateCommitMessage(diff, options)];
+
+  const results = await Promise.allSettled(
+    Array.from({ length: count }, (_, i) =>
+      provider.generateCommitMessage(diff, {
+        ...options,
+        temperature: 0.8,
+        hint: SUGGESTION_HINTS[i % SUGGESTION_HINTS.length],
+      }),
+    ),
+  );
+  const messages = results.flatMap((r) =>
+    r.status === "fulfilled" ? [r.value] : [],
+  );
+  if (messages.length === 0) {
+    throw (results[0] as PromiseRejectedResult).reason;
+  }
+  // Drop fallback messages (empty model answers) when real ones exist.
+  const real = messages.filter((m) => !m.endsWith(DEFAULT_SUBJECT));
+  return [...new Set(real.length > 0 ? real : messages)];
 }
 
 async function generatePullRequestContentOnce(
@@ -226,6 +261,7 @@ async function generatePullRequestContentOnce(
 
 interface ActionItem extends vscode.QuickPickItem {
   action: "accept" | "regenerate" | "edit" | "cancel";
+  message?: string;
 }
 
 interface PullRequestActionItem extends vscode.QuickPickItem {
@@ -238,18 +274,37 @@ interface PullRequestActionItem extends vscode.QuickPickItem {
     | "cancel";
 }
 
-async function pickAction(message: string): Promise<ActionItem["action"]> {
+async function pickAction(messages: string[]): Promise<ActionItem> {
+  const accept: ActionItem[] =
+    messages.length === 1
+      ? [
+          {
+            label: "$(check) Accept",
+            action: "accept",
+            description: messages[0],
+            message: messages[0],
+          },
+        ]
+      : messages.map((message) => ({
+          label: `$(check) ${message.split("\n")[0]}`,
+          detail: message.includes("\n")
+            ? message.split("\n").slice(1).join(" ").trim()
+            : undefined,
+          action: "accept",
+          message,
+        }));
   const items: ActionItem[] = [
-    { label: "$(check) Accept", action: "accept", description: message },
+    ...accept,
+    { label: "", kind: vscode.QuickPickItemKind.Separator, action: "cancel" },
     { label: "$(sync) Regenerate", action: "regenerate" },
     { label: "$(edit) Edit manually", action: "edit" },
     { label: "$(close) Cancel", action: "cancel" },
   ];
   const picked = await vscode.window.showQuickPick(items, {
-    placeHolder: message,
+    placeHolder: messages.length === 1 ? messages[0] : "Pick a commit message",
     ignoreFocusOut: true,
   });
-  return picked?.action ?? "cancel";
+  return picked ?? { label: "", action: "cancel" };
 }
 
 async function editMessage(current: string): Promise<string | undefined> {
@@ -454,23 +509,27 @@ async function runCommand(): Promise<void> {
           await getCurrentBranch(cwd).catch(() => ""),
           settings.ticketPattern,
         );
-  const generate = async () =>
-    addTicketId(
-      await generateOnce(provider, optimized.diff, commitOptions),
-      ticket,
-      settings.ticketId,
-    );
-
-  let message: string;
-  try {
-    message = await vscode.window.withProgress(
+  const generateAll = (title: string) =>
+    vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
-        title: `Nuvo Commit: generating with ${settings.model}…`,
+        title: `Nuvo Commit: ${title} with ${settings.model}…`,
         cancellable: false,
       },
-      generate,
+      async () =>
+        (
+          await generateSuggestions(
+            provider,
+            optimized.diff,
+            commitOptions,
+            settings.suggestions,
+          )
+        ).map((m) => addTicketId(m, ticket, settings.ticketId)),
     );
+
+  let messages: string[];
+  try {
+    messages = await generateAll("generating");
   } catch (err) {
     const msg = err instanceof ProviderError ? err.message : String(err);
     vscode.window.showErrorMessage(`Nuvo Commit: ${msg}`);
@@ -478,28 +537,25 @@ async function runCommand(): Promise<void> {
   }
 
   // Auto-accept: skip dialog and directly apply the message
-  if (settings.autoAccept) {
-    await applyMessage(message, cwd, settings.autoCommit);
+  if (settings.autoAccept && settings.suggestions === 1) {
+    await applyMessage(messages[0], cwd, settings.autoCommit);
     return;
   }
 
   // Show dialog for manual approval
   while (true) {
-    const action = await pickAction(message);
-    switch (action) {
+    const picked = await pickAction(messages);
+    switch (picked.action) {
       case "accept":
-        await applyMessage(message, cwd, settings.autoCommit);
+        await applyMessage(
+          picked.message ?? messages[0],
+          cwd,
+          settings.autoCommit,
+        );
         return;
       case "regenerate":
         try {
-          message = await vscode.window.withProgress(
-            {
-              location: vscode.ProgressLocation.Notification,
-              title: `Nuvo Commit: regenerating with ${settings.model}…`,
-              cancellable: false,
-            },
-            generate,
-          );
+          messages = await generateAll("regenerating");
         } catch (err) {
           const msg = err instanceof ProviderError ? err.message : String(err);
           vscode.window.showErrorMessage(`Nuvo Commit: ${msg}`);
@@ -507,9 +563,9 @@ async function runCommand(): Promise<void> {
         }
         break;
       case "edit": {
-        const edited = await editMessage(message);
+        const edited = await editMessage(messages[0]);
         if (edited) {
-          message = edited;
+          messages = [edited];
         }
         break;
       }

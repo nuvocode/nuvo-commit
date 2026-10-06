@@ -146,6 +146,14 @@
             "default": "[A-Z][A-Z0-9]+-\\d+",
             "order": 7,
             "markdownDescription": "Regular expression that finds the ticket ID in the branch name. The whole match is used. Default matches Jira-style keys like `ABC-123`."
+          },
+          "nuvoCommit.suggestions": {
+            "type": "number",
+            "default": 1,
+            "minimum": 1,
+            "maximum": 5,
+            "order": 8,
+            "description": "Number of commit messages to generate. With more than one, the suggestions are shown in a list to pick from, even when Auto Accept is on."
           }
         }
       },

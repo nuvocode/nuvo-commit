@@ -14,4 +14,8 @@ export interface CommitMessageOptions {
   scopes?: string[];
   /** false when the repository does not use Conventional Commits. */
   conventional?: boolean;
+  /** Sampling temperature. Raised when several suggestions are requested. */
+  temperature?: number;
+  /** Extra instruction that steers one suggestion toward a different angle. */
+  hint?: string;
 }

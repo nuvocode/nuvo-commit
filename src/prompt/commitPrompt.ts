@@ -165,7 +165,7 @@ Git diff:
 ${diff}
 \`\`\`
 
-${languageInstruction(options.language, options)}Commit message:`;
+${options.hint ? `${options.hint}\n\n` : ""}${languageInstruction(options.language, options)}Commit message:`;
 }
 
 function formatFileList(label: string, files?: string[]): string | undefined {

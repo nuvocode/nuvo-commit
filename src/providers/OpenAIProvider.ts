@@ -37,6 +37,7 @@ export class OpenAIProvider implements Provider {
       "You are a helpful assistant that generates concise git commit messages.",
       buildCommitPrompt(diff, options),
       options.includeBody ? 300 : 150,
+      options.temperature,
     );
     return sanitizeCommitMessage(text, options);
   }
@@ -62,14 +63,19 @@ export class OpenAIProvider implements Provider {
     system: string,
     prompt: string,
     maxTokens: number,
+    temperature = 0.2,
   ): Promise<string> {
-    const text = await this.request(system, prompt, maxTokens);
+    const text = await this.request(system, prompt, maxTokens, temperature);
     if (text) return text;
 
     // Not every API accepts "none"; a rejection lands in the error below.
-    const retry = await this.request(system, prompt, maxTokens, "none").catch(
-      () => "",
-    );
+    const retry = await this.request(
+      system,
+      prompt,
+      maxTokens,
+      temperature,
+      "none",
+    ).catch(() => "");
     if (retry) return retry;
 
     throw new ProviderError(
@@ -82,6 +88,7 @@ export class OpenAIProvider implements Provider {
     system: string,
     prompt: string,
     maxTokens: number,
+    temperature: number,
     reasoningEffort?: string,
   ): Promise<string> {
     const endpoint = this.opts.endpoint || DEFAULT_ENDPOINT;
@@ -102,7 +109,7 @@ export class OpenAIProvider implements Provider {
               { role: "system", content: system },
               { role: "user", content: prompt },
             ],
-            temperature: 0.2,
+            temperature,
             max_tokens: maxTokens,
             ...(reasoningEffort && { reasoning_effort: reasoningEffort }),
           }),

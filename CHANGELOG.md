@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `nuvoCommit.ticketId` setting: add the ticket ID from the branch name
   (`feat/ABC-123-login` → `ABC-123`) as a `Refs:` footer or before the subject.
   Off by default. `nuvoCommit.ticketPattern` sets the regular expression.
+- `nuvoCommit.suggestions` setting: generate up to 5 commit messages at once and
+  pick one from a list. Each suggestion takes a different angle (user-facing
+  effect, changed code, shorter) and duplicates are dropped. Defaults to `1`.
 
 ### Changed
 
