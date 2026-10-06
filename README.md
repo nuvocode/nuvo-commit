@@ -32,8 +32,11 @@
    - **Local (recommended)**: install Ollama (`brew install ollama` on macOS, or see
      [ollama.ai](https://ollama.ai)).
    - **Cloud**: get an API key from OpenAI or Anthropic.
-3. Configure the extension (see [Configuration](#configuration)).
-4. Start generating commit messages!
+3. Follow the **Get Started with Nuvo Commit** walkthrough that opens after
+   install (or configure manually, see [Configuration](#configuration)).
+4. Run **Nuvo Commit: Check Setup** to confirm the provider and model work. If
+   something is wrong, the error offers the fix.
+5. Start generating commit messages!
 
 ## Usage
 

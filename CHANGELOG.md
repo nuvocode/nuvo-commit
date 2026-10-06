@@ -5,6 +5,16 @@ All notable changes to the **Nuvo Commit** extension are documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Get Started with Nuvo Commit** walkthrough: choose a provider, check the
+  setup and generate the first message.
+- **Nuvo Commit: Check Setup** sends a small sample diff to the active provider.
+  On failure it offers the fix: install Ollama, copy the `ollama pull` command,
+  pick another model or set the API key.
+
 ## [1.3.0] - 2026-09-25
 
 ### Added

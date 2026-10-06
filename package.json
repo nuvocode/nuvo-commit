@@ -55,6 +55,10 @@
       {
         "command": "nuvoCommit.setApiKey",
         "title": "Nuvo Commit: Set API Key"
+      },
+      {
+        "command": "nuvoCommit.checkSetup",
+        "title": "Nuvo Commit: Check Setup"
       }
     ],
     "menus": {
@@ -270,6 +274,49 @@
             "description": "Deprecated fallback model setting."
           }
         }
+      }
+    ],
+    "walkthroughs": [
+      {
+        "id": "gettingStarted",
+        "title": "Get Started with Nuvo Commit",
+        "description": "Pick an AI provider, check that it works, and generate your first commit message.",
+        "steps": [
+          {
+            "id": "chooseProvider",
+            "title": "Choose a provider",
+            "description": "Run models locally with Ollama, or use OpenAI or Anthropic in the cloud.\n[Choose Provider](command:nuvoCommit.settings)",
+            "media": {
+              "markdown": "walkthrough/provider.md"
+            },
+            "completionEvents": [
+              "onCommand:nuvoCommit.settings",
+              "onSettingChanged:nuvoCommit.provider"
+            ]
+          },
+          {
+            "id": "checkSetup",
+            "title": "Check your setup",
+            "description": "Send a small sample to the provider to make sure everything works. If not, you'll be pointed to the fix.\n[Check Setup](command:nuvoCommit.checkSetup)",
+            "media": {
+              "markdown": "walkthrough/check.md"
+            },
+            "completionEvents": [
+              "onContext:nuvoCommit.setupVerified"
+            ]
+          },
+          {
+            "id": "generate",
+            "title": "Generate your first commit message",
+            "description": "Stage some changes and click ✨ in the Source Control view.\n[Open Source Control](command:workbench.view.scm)",
+            "media": {
+              "markdown": "walkthrough/generate.md"
+            },
+            "completionEvents": [
+              "onCommand:nuvoCommit.generate"
+            ]
+          }
+        ]
       }
     ]
   },
