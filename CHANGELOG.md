@@ -30,6 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ollama thinking models (e.g. qwen3, gemma4) no longer return the generic
   `chore: update staged changes` message: requests now send `think: false`, so
   the token budget goes to the answer instead of hidden reasoning.
+- Reasoning models on OpenAI-compatible endpoints (e.g. Ollama's `/v1`, Groq,
+  Gemini) no longer return the generic `chore: update staged changes` message:
+  when a response comes back empty, the request is retried once with
+  `reasoning_effort: "none"`. If the service rejects that, a clear error
+  suggests a non-reasoning model.
 
 ## [1.3.0] - 2026-09-25
 
