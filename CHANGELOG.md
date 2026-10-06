@@ -5,6 +5,16 @@ All notable changes to the **Nuvo Commit** extension are documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Commit messages follow the repository's style: the last 15 commit headers are
+  sent as examples. Repositories that do not use Conventional Commits get
+  messages in their own style, without a `chore:` prefix.
+- Allowed types and scopes are read from the commitlint config
+  (`.commitlintrc*`, `commitlint.config.*` or `package.json`) when present.
+
 ## [1.3.0] - 2026-09-25
 
 ### Added

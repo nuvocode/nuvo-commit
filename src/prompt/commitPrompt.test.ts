@@ -42,4 +42,30 @@ describe("buildCommitPrompt", () => {
     expect(prompt).toContain("Diff context is balanced across files");
     expect(prompt).toContain("Do not focus only on the first file.");
   });
+
+  it("should use the repository's types, scopes and recent commits", () => {
+    const prompt = buildCommitPrompt("diff content", {
+      types: ["feat", "deps"],
+      scopes: ["api", "web"],
+      examples: ["feat(api): add users endpoint"],
+    });
+
+    expect(prompt).toContain("type must be one of: feat, deps.");
+    expect(prompt).toContain("scope, if used, must be one of: api, web.");
+    expect(prompt).toContain("Recent commits in this repository");
+    expect(prompt).toContain("feat(api): add users endpoint");
+  });
+
+  it("should follow the recent commits when the repo is not conventional", () => {
+    const prompt = buildCommitPrompt("diff content", {
+      conventional: false,
+      examples: ["Add login page"],
+    });
+
+    expect(prompt).toContain("You write git commit messages");
+    expect(prompt).toContain("Follow the style of the recent commits");
+    expect(prompt).not.toContain("type must be one of");
+    expect(prompt).not.toContain("feat(auth): add token validation");
+    expect(prompt).toContain("Add login page");
+  });
 });

@@ -11,6 +11,7 @@ import {
   listBaseBranchCandidates,
   resolvePullRequestBaseBranch,
 } from "./git/diff";
+import { readCommitStyle } from "./git/commitStyle";
 import {
   Provider,
   ProviderError,
@@ -419,6 +420,7 @@ async function runCommand(): Promise<void> {
     skippedFiles: optimized.skippedFiles,
     truncated: optimized.truncated,
     truncatedFiles: optimized.truncatedFiles,
+    ...(await readCommitStyle(cwd)),
   };
 
   let message: string;

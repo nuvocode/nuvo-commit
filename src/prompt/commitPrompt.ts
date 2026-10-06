@@ -17,14 +17,29 @@ export type CommitType = (typeof ALLOWED_TYPES)[number];
 
 export type CommitPromptOptions = CommitMessageOptions;
 
-const HEADER_RULES = `You write Conventional Commit messages from a git diff.
+function formatRules(options: CommitPromptOptions): string {
+  if (options.conventional === false) {
+    return `- Follow the style of the recent commits shown below: casing, prefixes, tense and length.
+- Do not add a Conventional Commit type unless the recent commits use one.`;
+  }
+
+  const types = options.types ?? ALLOWED_TYPES;
+  const scopes = options.scopes
+    ? `\n- scope, if used, must be one of: ${options.scopes.join(", ")}.`
+    : "";
+  return `- Format: <type>(<scope>)?: <subject>
+- type must be one of: ${types.join(", ")}.${scopes}
+- subject is imperative mood, lowercase, no trailing period.`;
+}
+
+function headerRules(options: CommitPromptOptions): string {
+  const conventional = options.conventional !== false;
+  return `You write ${conventional ? "Conventional Commit" : "git commit"} messages from a git diff.
 
 OUTPUT FORMAT — STRICT:
 - Output ONE line only for the header.
 - Maximum 72 characters total for the header.
-- Format: <type>(<scope>)?: <subject>
-- type must be one of: ${ALLOWED_TYPES.join(", ")}.
-- subject is imperative mood, lowercase, no trailing period.
+${formatRules(options)}
 - Keep it concise and complete.
 - Consider all changed files listed in the context, not only the first diff.
 - If the diff was truncated, infer the main intent from the full changed-file list.
@@ -37,7 +52,9 @@ FORBIDDEN:
 - No emoji.
 - No "Here is" / "This commit" / "I have" wording.
 - No body/description text - header only.
-
+${
+  conventional
+    ? `
 Examples of CORRECT output:
 feat(auth): add token validation
 fix(api): handle empty body
@@ -50,19 +67,22 @@ Examples of INCORRECT output:
 feat: add login.\nThis adds... (no extra lines)
 feat(parser): implement new recursive descent parsing (too long)
 fix: update auth and (incomplete subject)
-
+`
+    : ""
+}
 Reply with the commit message header ONLY. Nothing else.`;
+}
 
-const BODY_RULES = `You write Conventional Commit messages from a git diff.
+function bodyRules(options: CommitPromptOptions): string {
+  const conventional = options.conventional !== false;
+  return `You write ${conventional ? "Conventional Commit" : "git commit"} messages from a git diff.
 
 OUTPUT FORMAT — STRICT:
-- First line: a Conventional Commit header.
+- First line: a ${conventional ? "Conventional Commit " : ""}header.
 - Maximum 72 characters total for the header.
 - Then one blank line.
 - Then a short body explaining the most important change.
-- Format: <type>(<scope>)?: <subject>
-- type must be one of: ${ALLOWED_TYPES.join(", ")}.
-- subject is imperative mood, lowercase, no trailing period.
+${formatRules(options)}
 - Consider all changed files listed in the context, not only the first diff.
 - If the diff was truncated, infer the main intent from the full changed-file list.
 - Do not end the header subject with weak trailing words like "and", "with", "for", or "to".
@@ -73,7 +93,9 @@ FORBIDDEN:
 - No bullet points, no lists.
 - No emoji.
 - No "Here is" / "This commit" / "I have" wording.
-
+${
+  conventional
+    ? `
 Examples of CORRECT output:
 feat(auth): add token validation
 
@@ -82,14 +104,25 @@ Validate bearer tokens before protected route access.
 fix(api): handle empty body
 
 Return a clear validation error for empty requests.
-
+`
+    : ""
+}
 Reply with the commit message only. Nothing else.`;
+}
+
+function formatExamples(examples?: string[]): string {
+  if (!examples || examples.length === 0) return "";
+  const lines = examples.map((e) => e.slice(0, 100)).join("\n");
+  return `\n\nRecent commits in this repository (match their style and wording, not their content):\n${lines}`;
+}
 
 export function buildCommitPrompt(
   diff: string,
   options: CommitPromptOptions = {},
 ): string {
-  const rules = options.includeBody ? BODY_RULES : HEADER_RULES;
+  const rules =
+    (options.includeBody ? bodyRules(options) : headerRules(options)) +
+    formatExamples(options.examples);
   const changedFiles = formatFileList("Changed files", options.files);
   const skippedFiles = formatFileList("Skipped files", options.skippedFiles);
   const truncatedFiles = formatFileList(
