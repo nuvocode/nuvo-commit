@@ -11,6 +11,7 @@ import {
   listBaseBranchCandidates,
   resolvePullRequestBaseBranch,
 } from "./git/diff";
+import { readCommitStyle } from "./git/commitStyle";
 import {
   Provider,
   ProviderError,
@@ -19,10 +20,20 @@ import {
 import { OllamaProvider } from "./providers/OllamaProvider";
 import { OpenAIProvider } from "./providers/OpenAIProvider";
 import { AnthropicProvider } from "./providers/AnthropicProvider";
+import { VSCodeLMProvider } from "./providers/VSCodeLMProvider";
 import { CommitMessageOptions } from "./commitMessage";
 import { PullRequestContent, PullRequestContentOptions } from "./pullRequest";
 import { buildProviderConfig, requiresApiKey } from "./providers/config";
 import { optimizeDiff } from "./utils/optimizeDiff";
+import { SAMPLE_DIFF, setupFixes } from "./setupCheck";
+import { DEFAULT_SUBJECT } from "./utils/sanitize";
+import {
+  addTicketId,
+  DEFAULT_TICKET_PATTERN,
+  extractTicketId,
+  TicketIdMode,
+} from "./utils/ticketId";
+import { applyMessageStyle, MessageStyle } from "./utils/messageStyle";
 
 const execFileAsync = promisify(execFile);
 
@@ -36,7 +47,12 @@ const PROVIDER_DEFAULTS: Record<string, { model: string; endpoint: string }> = {
     endpoint: "",
   },
   anthropic: {
-    model: "claude-3-5-sonnet-20241022",
+    model: "claude-haiku-4-5",
+    endpoint: "",
+  },
+  // Empty model = first model VS Code offers.
+  vscode: {
+    model: "",
     endpoint: "",
   },
 };
@@ -55,6 +71,12 @@ interface Settings {
   autoCommit: boolean;
   autoAccept: boolean;
   includeBody: boolean;
+  language: string;
+  ticketId: TicketIdMode;
+  ticketPattern: string;
+  suggestions: number;
+  style: MessageStyle;
+  gitmoji: Record<string, string>;
   pullRequestBaseBranch: string;
   pullRequestOpenCreateView: boolean;
   pullRequestIncludeCommitList: boolean;
@@ -114,8 +136,12 @@ export function readSettings(): Settings {
   const cfg = vscode.workspace.getConfiguration("nuvoCommit");
   const provider = cfg.get<string>("provider", "ollama");
   const defaults = getProviderDefaults(provider);
-  const legacyModel = readConfiguredString(cfg, "model");
-  const legacyEndpoint = readConfiguredString(cfg, "endpoint");
+  // Legacy settings predate the vscode provider and hold Ollama/cloud values.
+  const legacy = provider !== "vscode";
+  const legacyModel = legacy ? readConfiguredString(cfg, "model") : undefined;
+  const legacyEndpoint = legacy
+    ? readConfiguredString(cfg, "endpoint")
+    : undefined;
 
   return {
     provider,
@@ -135,6 +161,12 @@ export function readSettings(): Settings {
     autoCommit: cfg.get<boolean>("autoCommit", false),
     autoAccept: cfg.get<boolean>("autoAccept", true),
     includeBody: cfg.get<boolean>("includeBody", false),
+    language: cfg.get<string>("language", "English"),
+    ticketId: cfg.get<TicketIdMode>("ticketId", "off"),
+    ticketPattern: cfg.get<string>("ticketPattern", DEFAULT_TICKET_PATTERN),
+    suggestions: Math.min(Math.max(cfg.get<number>("suggestions", 1), 1), 5),
+    style: cfg.get<MessageStyle>("style", "conventional"),
+    gitmoji: cfg.get<Record<string, string>>("gitmoji", {}),
     pullRequestBaseBranch: cfg.get<string>("pullRequestBaseBranch", ""),
     pullRequestOpenCreateView: cfg.get<boolean>(
       "pullRequestOpenCreateView",
@@ -183,12 +215,45 @@ function getRepoRoot(): string | undefined {
   return folders[0].uri.fsPath;
 }
 
-async function generateOnce(
-  provider: Provider,
+/** Angles for the extra suggestions; the first one uses the plain prompt. */
+const SUGGESTION_HINTS = [
+  undefined,
+  "Focus the subject on the effect for users of the code, not on the implementation.",
+  "Name the main function, class or module that changed in the subject.",
+  "Make the subject as short as possible.",
+  "Mention the most important detail of the change in the subject.",
+];
+
+/**
+ * Generates `count` messages in parallel and drops duplicates. Each suggestion
+ * gets its own hint and a higher temperature so they differ from each other.
+ */
+export async function generateSuggestions(
+  provider: Pick<Provider, "generateCommitMessage">,
   diff: string,
   options: CommitMessageOptions,
-): Promise<string> {
-  return provider.generateCommitMessage(diff, options);
+  count: number,
+): Promise<string[]> {
+  if (count <= 1) return [await provider.generateCommitMessage(diff, options)];
+
+  const results = await Promise.allSettled(
+    Array.from({ length: count }, (_, i) =>
+      provider.generateCommitMessage(diff, {
+        ...options,
+        temperature: 0.8,
+        hint: SUGGESTION_HINTS[i % SUGGESTION_HINTS.length],
+      }),
+    ),
+  );
+  const messages = results.flatMap((r) =>
+    r.status === "fulfilled" ? [r.value] : [],
+  );
+  if (messages.length === 0) {
+    throw (results[0] as PromiseRejectedResult).reason;
+  }
+  // Drop fallback messages (empty model answers) when real ones exist.
+  const real = messages.filter((m) => !m.endsWith(DEFAULT_SUBJECT));
+  return [...new Set(real.length > 0 ? real : messages)];
 }
 
 async function generatePullRequestContentOnce(
@@ -201,6 +266,7 @@ async function generatePullRequestContentOnce(
 
 interface ActionItem extends vscode.QuickPickItem {
   action: "accept" | "regenerate" | "edit" | "cancel";
+  message?: string;
 }
 
 interface PullRequestActionItem extends vscode.QuickPickItem {
@@ -213,18 +279,37 @@ interface PullRequestActionItem extends vscode.QuickPickItem {
     | "cancel";
 }
 
-async function pickAction(message: string): Promise<ActionItem["action"]> {
+async function pickAction(messages: string[]): Promise<ActionItem> {
+  const accept: ActionItem[] =
+    messages.length === 1
+      ? [
+          {
+            label: "$(check) Accept",
+            action: "accept",
+            description: messages[0],
+            message: messages[0],
+          },
+        ]
+      : messages.map((message) => ({
+          label: `$(check) ${message.split("\n")[0]}`,
+          detail: message.includes("\n")
+            ? message.split("\n").slice(1).join(" ").trim()
+            : undefined,
+          action: "accept",
+          message,
+        }));
   const items: ActionItem[] = [
-    { label: "$(check) Accept", action: "accept", description: message },
+    ...accept,
+    { label: "", kind: vscode.QuickPickItemKind.Separator, action: "cancel" },
     { label: "$(sync) Regenerate", action: "regenerate" },
     { label: "$(edit) Edit manually", action: "edit" },
     { label: "$(close) Cancel", action: "cancel" },
   ];
   const picked = await vscode.window.showQuickPick(items, {
-    placeHolder: message,
+    placeHolder: messages.length === 1 ? messages[0] : "Pick a commit message",
     ignoreFocusOut: true,
   });
-  return picked?.action ?? "cancel";
+  return picked ?? { label: "", action: "cancel" };
 }
 
 async function editMessage(current: string): Promise<string | undefined> {
@@ -419,18 +504,44 @@ async function runCommand(): Promise<void> {
     skippedFiles: optimized.skippedFiles,
     truncated: optimized.truncated,
     truncatedFiles: optimized.truncatedFiles,
+    language: settings.language,
+    ...(await readCommitStyle(cwd)),
   };
-
-  let message: string;
-  try {
-    message = await vscode.window.withProgress(
+  const ticket =
+    settings.ticketId === "off"
+      ? undefined
+      : extractTicketId(
+          await getCurrentBranch(cwd).catch(() => ""),
+          settings.ticketPattern,
+        );
+  const generateAll = (title: string) =>
+    vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
-        title: `Nuvo Commit: generating with ${settings.model}…`,
+        title: `Nuvo Commit: ${title} with ${settings.model}…`,
         cancellable: false,
       },
-      () => generateOnce(provider, optimized.diff, commitOptions),
+      async () =>
+        (
+          await generateSuggestions(
+            provider,
+            optimized.diff,
+            commitOptions,
+            settings.suggestions,
+          )
+        ).map((m) =>
+          // Ticket first: its prefix mode expects a Conventional header.
+          applyMessageStyle(
+            addTicketId(m, ticket, settings.ticketId),
+            settings.style,
+            settings.gitmoji,
+          ),
+        ),
     );
+
+  let messages: string[];
+  try {
+    messages = await generateAll("generating");
   } catch (err) {
     const msg = err instanceof ProviderError ? err.message : String(err);
     vscode.window.showErrorMessage(`Nuvo Commit: ${msg}`);
@@ -438,28 +549,25 @@ async function runCommand(): Promise<void> {
   }
 
   // Auto-accept: skip dialog and directly apply the message
-  if (settings.autoAccept) {
-    await applyMessage(message, cwd, settings.autoCommit);
+  if (settings.autoAccept && settings.suggestions === 1) {
+    await applyMessage(messages[0], cwd, settings.autoCommit);
     return;
   }
 
   // Show dialog for manual approval
   while (true) {
-    const action = await pickAction(message);
-    switch (action) {
+    const picked = await pickAction(messages);
+    switch (picked.action) {
       case "accept":
-        await applyMessage(message, cwd, settings.autoCommit);
+        await applyMessage(
+          picked.message ?? messages[0],
+          cwd,
+          settings.autoCommit,
+        );
         return;
       case "regenerate":
         try {
-          message = await vscode.window.withProgress(
-            {
-              location: vscode.ProgressLocation.Notification,
-              title: `Nuvo Commit: regenerating with ${settings.model}…`,
-              cancellable: false,
-            },
-            () => generateOnce(provider, optimized.diff, commitOptions),
-          );
+          messages = await generateAll("regenerating");
         } catch (err) {
           const msg = err instanceof ProviderError ? err.message : String(err);
           vscode.window.showErrorMessage(`Nuvo Commit: ${msg}`);
@@ -467,9 +575,9 @@ async function runCommand(): Promise<void> {
         }
         break;
       case "edit": {
-        const edited = await editMessage(message);
+        const edited = await editMessage(messages[0]);
         if (edited) {
-          message = edited;
+          messages = [edited];
         }
         break;
       }
@@ -571,6 +679,7 @@ async function runPullRequestContentCommand(): Promise<void> {
     currentBranch: pullRequestDiff.currentBranch,
     commits: pullRequestDiff.commits,
     includeCommitList: settings.pullRequestIncludeCommitList,
+    language: settings.language,
   };
 
   let content: PullRequestContent;
@@ -657,7 +766,14 @@ async function selectModel(): Promise<void> {
   // Get available models from provider
   let models: string[] = [];
   if (provider.listModels) {
-    models = await provider.listModels();
+    const listModels = provider.listModels.bind(provider);
+    models = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Window,
+        title: "Nuvo Commit: Loading models…",
+      },
+      listModels,
+    );
   }
 
   // Add custom input option
@@ -732,7 +848,7 @@ export async function updateActiveProvider(provider: string): Promise<void> {
 }
 
 interface ProviderItem extends vscode.QuickPickItem {
-  provider: "ollama" | "openai" | "anthropic";
+  provider: "ollama" | "openai" | "anthropic" | "vscode";
 }
 
 interface ApiKeyProviderItem extends vscode.QuickPickItem {
@@ -751,6 +867,8 @@ function providerLabel(provider: string): string {
       return "OpenAI";
     case "anthropic":
       return "Anthropic";
+    case "vscode":
+      return "VS Code";
     default:
       return provider;
   }
@@ -779,6 +897,14 @@ async function pickProvider(
           currentProvider === "anthropic" ? "Current provider" : undefined,
         provider: "anthropic",
       },
+      {
+        label: "VS Code (Copilot)",
+        description:
+          currentProvider === "vscode"
+            ? "Current provider"
+            : "No API key needed",
+        provider: "vscode",
+      },
     ],
     {
       placeHolder: "Select AI provider",
@@ -798,15 +924,18 @@ function buildSettingsActionItems(settings: Settings): SettingsActionItem[] {
     },
     {
       label: "$(symbol-string) Model",
-      description: settings.model,
+      description: settings.model || "Auto",
       action: "model",
     },
-    {
+  ];
+
+  if (settings.provider !== "vscode") {
+    items.push({
       label: "$(link) Endpoint",
       description: settings.endpoint || "Default provider endpoint",
       action: "endpoint",
-    },
-  ];
+    });
+  }
 
   if (requiresApiKey(settings.provider)) {
     items.push({
@@ -817,22 +946,6 @@ function buildSettingsActionItems(settings: Settings): SettingsActionItem[] {
   }
 
   return items;
-}
-
-async function configureProviderModel(settings: Settings): Promise<void> {
-  const input = await vscode.window.showInputBox({
-    value: settings.model,
-    prompt: `Enter ${providerLabel(settings.provider)} model`,
-    ignoreFocusOut: true,
-    validateInput: (value) =>
-      value.trim().length === 0 ? "Model cannot be empty" : null,
-  });
-  if (input === undefined) return;
-
-  await updateProviderModel(settings.provider, input.trim());
-  vscode.window.showInformationMessage(
-    `Nuvo Commit: ${providerLabel(settings.provider)} model updated.`,
-  );
 }
 
 async function configureProviderEndpoint(settings: Settings): Promise<void> {
@@ -875,7 +988,7 @@ export async function configureProviderSettings(): Promise<void> {
       return;
     }
     case "model":
-      await configureProviderModel(settings);
+      await selectModel();
       return;
     case "endpoint":
       await configureProviderEndpoint(settings);
@@ -945,6 +1058,52 @@ async function setApiKey(): Promise<void> {
   );
 }
 
+/** Sends a tiny diff through the active provider and offers fixes on failure. */
+async function checkSetup(): Promise<void> {
+  const settings = readSettings();
+  const label = providerLabel(settings.provider);
+
+  try {
+    const message = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Nuvo Commit: testing ${label} (${settings.model})…`,
+      },
+      async () =>
+        (await buildProvider(settings)).generateCommitMessage(SAMPLE_DIFF),
+    );
+    if (message.endsWith(DEFAULT_SUBJECT)) {
+      throw new ProviderError(
+        `${settings.model} returned an empty response. Choose another model.`,
+      );
+    }
+    await vscode.commands.executeCommand(
+      "setContext",
+      "nuvoCommit.setupVerified",
+      true,
+    );
+    vscode.window.showInformationMessage(
+      `Nuvo Commit: ${label} is ready. Sample message: "${message}"`,
+    );
+  } catch (err) {
+    const error = err instanceof ProviderError ? err.message : String(err);
+    const fixes = setupFixes(settings.provider, settings.model, error);
+    const picked = await vscode.window.showErrorMessage(
+      `Nuvo Commit: ${error}`,
+      ...fixes.map((f) => f.title),
+    );
+    const fix = fixes.find((f) => f.title === picked);
+    if (fix?.command) await vscode.commands.executeCommand(fix.command);
+    if (fix?.url) await vscode.env.openExternal(vscode.Uri.parse(fix.url));
+    if (fix?.copy) {
+      await vscode.env.clipboard.writeText(fix.copy);
+      vscode.window.showInformationMessage(
+        `Copied "${fix.copy}". Run it in a terminal, then check again.`,
+      );
+    }
+  }
+}
+
 /**
  * One-time migration: move any plaintext `nuvoCommit.apiKey` setting into
  * SecretStorage and clear it from settings.json so it cannot leak into git.
@@ -994,6 +1153,7 @@ export function activate(context: vscode.ExtensionContext): void {
   ProviderRegistry.register("ollama", OllamaProvider);
   ProviderRegistry.register("openai", OpenAIProvider);
   ProviderRegistry.register("anthropic", AnthropicProvider);
+  ProviderRegistry.register("vscode", VSCodeLMProvider);
 
   void migrateApiKey();
 
@@ -1009,6 +1169,7 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.commands.registerCommand("nuvoCommit.selectModel", selectModel),
     vscode.commands.registerCommand("nuvoCommit.setApiKey", setApiKey),
+    vscode.commands.registerCommand("nuvoCommit.checkSetup", checkSetup),
   );
 
   // Always-visible provider/model; click opens the settings picker (Provider is its first item).
@@ -1031,7 +1192,7 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 export function statusBarText(settings: Settings): string {
-  return `$(sparkle) ${providerLabel(settings.provider)}: ${settings.model}`;
+  return `$(sparkle) ${providerLabel(settings.provider)}: ${settings.model || "Auto"}`;
 }
 
 export function deactivate(): void {}

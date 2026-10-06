@@ -101,6 +101,7 @@ describe('OllamaProvider', () => {
     expect(body.model).toBe(mockModel);
     expect(body.prompt).toBeDefined();
     expect(body.stream).toBe(false);
+    expect(body.think).toBe(false);
     expect(body.options).toEqual({
       temperature: 0.2,
       top_p: 0.9,
@@ -140,5 +141,21 @@ describe('OllamaProvider', () => {
       num_predict: 180,
       stop: ['```', 'Here', 'This commit'],
     });
+  });
+
+  it('should disable thinking for pull request content', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        response: '{"title":"Add login","body":"## Summary\\nx\\n\\n## Testing\\nNot run."}',
+        done: true,
+      }),
+    });
+
+    const provider = new OllamaProvider({ endpoint: mockEndpoint, model: mockModel });
+    await provider.generatePullRequestContent('diff content here');
+
+    const body = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+    expect(body.think).toBe(false);
   });
 });

@@ -2,17 +2,18 @@ import { ALLOWED_TYPES } from "../prompt/commitPrompt";
 import { CommitMessageOptions } from "../commitMessage";
 
 const HEADER_MAX_LEN = 72;
-const DEFAULT_SUBJECT = "update staged changes";
+export const DEFAULT_SUBJECT = "update staged changes";
 
 export type SanitizeCommitMessageOptions = CommitMessageOptions;
 
-const CONVENTIONAL_RE = new RegExp(
-  `^(${ALLOWED_TYPES.join("|")})(\\([^)]+\\))?!?:\\s.+`,
-);
-
-const CONVENTIONAL_PARTS_RE = new RegExp(
-  `^(?<prefix>(${ALLOWED_TYPES.join("|")})(\\([^)]+\\))?!?:\\s*)(?<subject>.+)$`,
-);
+function conventionalPatterns(types: readonly string[]) {
+  return {
+    full: new RegExp(`^(${types.join("|")})(\\([^)]+\\))?!?:\\s.+`),
+    parts: new RegExp(
+      `^(?<prefix>(${types.join("|")})(\\([^)]+\\))?!?:\\s*)(?<subject>.+)$`,
+    ),
+  };
+}
 
 const WEAK_TRAILING_WORDS = new Set([
   "and",
@@ -79,15 +80,27 @@ function removeWeakTrailingWords(text: string): string {
   }
 }
 
-function normalizeHeader(rawHeader: string): string {
+function normalizeHeader(
+  rawHeader: string,
+  options: SanitizeCommitMessageOptions,
+): string {
   let line = removeTrailingPunctuation(cleanLine(rawHeader));
 
-  if (!CONVENTIONAL_RE.test(line)) {
-    const fallback = line.length > 0 ? line : DEFAULT_SUBJECT;
-    line = `chore: ${fallback}`;
+  if (options.conventional === false) {
+    if (line.length <= HEADER_MAX_LEN) return line || DEFAULT_SUBJECT;
+    return removeWeakTrailingWords(
+      truncateAtWordBoundary(line, HEADER_MAX_LEN),
+    );
   }
 
-  const parts = CONVENTIONAL_PARTS_RE.exec(line);
+  const types = options.types ?? ALLOWED_TYPES;
+  const patterns = conventionalPatterns(types);
+  if (!patterns.full.test(line)) {
+    const fallback = line.length > 0 ? line : DEFAULT_SUBJECT;
+    line = `${types.includes("chore") ? "chore" : types[0]}: ${fallback}`;
+  }
+
+  const parts = patterns.parts.exec(line);
   if (!parts?.groups) {
     return truncateAtWordBoundary(line, HEADER_MAX_LEN);
   }
@@ -132,7 +145,7 @@ export function sanitizeCommitMessage(
   const lines = text.split(/\r?\n/);
   const firstLineIndex = lines.findIndex((l) => l.trim().length > 0);
   const firstLine = firstLineIndex >= 0 ? lines[firstLineIndex] : "";
-  const header = normalizeHeader(firstLine);
+  const header = normalizeHeader(firstLine, options);
 
   if (!options.includeBody || firstLineIndex < 0) {
     return header;

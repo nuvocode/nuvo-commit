@@ -6,7 +6,7 @@
   "publisher": "nuvocode",
   "icon": "images/logo.png",
   "engines": {
-    "vscode": "^1.85.0",
+    "vscode": "^1.90.0",
     "node": ">=18"
   },
   "categories": [
@@ -21,7 +21,13 @@
     "openai",
     "anthropic",
     "local-first",
-    "multi-provider"
+    "multi-provider",
+    "copilot",
+    "conventional commits",
+    "commit message",
+    "pull request",
+    "llm",
+    "gitmoji"
   ],
   "galleryBanner": {
     "color": "#1e1e2e",
@@ -55,6 +61,18 @@
       {
         "command": "nuvoCommit.setApiKey",
         "title": "Nuvo Commit: Set API Key"
+      },
+      {
+        "command": "nuvoCommit.checkSetup",
+        "title": "Nuvo Commit: Check Setup"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "nuvoCommit.generate",
+        "key": "ctrl+alt+g",
+        "mac": "cmd+alt+g",
+        "when": "focusedView == workbench.scm"
       }
     ],
     "menus": {
@@ -101,6 +119,75 @@
             "minimum": 1000,
             "order": 4,
             "description": "Maximum diff characters sent to the model. Diffs above this are truncated."
+          },
+          "nuvoCommit.language": {
+            "type": "string",
+            "default": "English",
+            "order": 5,
+            "examples": [
+              "English",
+              "Turkish",
+              "German",
+              "Spanish",
+              "French",
+              "Japanese"
+            ],
+            "description": "Language for generated commit messages and pull request content. Conventional Commit types (feat, fix, ...) stay in English."
+          },
+          "nuvoCommit.ticketId": {
+            "type": "string",
+            "enum": [
+              "off",
+              "footer",
+              "prefix"
+            ],
+            "enumDescriptions": [
+              "Do not add a ticket ID.",
+              "Add a `Refs: ABC-123` footer.",
+              "Add the ticket ID before the subject, e.g. `feat: ABC-123 add login`."
+            ],
+            "default": "off",
+            "order": 6,
+            "description": "Add the ticket ID found in the branch name (e.g. `feat/ABC-123-login`) to the commit message."
+          },
+          "nuvoCommit.ticketPattern": {
+            "type": "string",
+            "default": "[A-Z][A-Z0-9]+-\\d+",
+            "order": 7,
+            "markdownDescription": "Regular expression that finds the ticket ID in the branch name. The whole match is used. Default matches Jira-style keys like `ABC-123`."
+          },
+          "nuvoCommit.suggestions": {
+            "type": "number",
+            "default": 1,
+            "minimum": 1,
+            "maximum": 5,
+            "order": 8,
+            "description": "Number of commit messages to generate. With more than one, the suggestions are shown in a list to pick from, even when Auto Accept is on."
+          },
+          "nuvoCommit.style": {
+            "type": "string",
+            "enum": [
+              "conventional",
+              "gitmoji",
+              "plain"
+            ],
+            "enumDescriptions": [
+              "Conventional Commits, e.g. `feat(auth): add login`.",
+              "gitmoji, e.g. `✨ auth: add login`.",
+              "No type prefix, e.g. `Add login`."
+            ],
+            "default": "conventional",
+            "order": 9,
+            "description": "Format of the commit message header."
+          },
+          "nuvoCommit.gitmoji": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "order": 10,
+            "markdownDescription": "Emoji per commit type for the `gitmoji` style, e.g. `{ \"feat\": \"🚀\", \"breaking\": \"🔥\" }`. Overrides the gitmoji.dev defaults; `breaking` is used for `!` headers."
           }
         }
       },
@@ -139,12 +226,14 @@
             "enum": [
               "ollama",
               "openai",
-              "anthropic"
+              "anthropic",
+              "vscode"
             ],
             "enumDescriptions": [
               "Ollama - Local AI provider for running models locally",
               "OpenAI - Cloud API provider (requires API key)",
-              "Anthropic - Cloud API provider (requires API key)"
+              "Anthropic - Cloud API provider (requires API key)",
+              "VS Code - Language models already available in VS Code, such as GitHub Copilot (no API key)"
             ],
             "default": "ollama",
             "order": 1,
@@ -222,20 +311,33 @@
           },
           "nuvoCommit.anthropic.model": {
             "type": "string",
-            "default": "claude-3-5-sonnet-20241022",
+            "default": "claude-haiku-4-5",
             "order": 2,
             "examples": [
-              "claude-sonnet-4-20250514",
-              "claude-3-5-sonnet-20241022"
+              "claude-haiku-4-5",
+              "claude-sonnet-5-5"
             ],
             "description": "Anthropic model identifier."
           }
         }
       },
       {
+        "id": "nuvoCommit.vscode",
+        "title": "VS Code",
+        "order": 7,
+        "properties": {
+          "nuvoCommit.vscode.model": {
+            "type": "string",
+            "default": "",
+            "order": 1,
+            "description": "VS Code language model id (e.g. from GitHub Copilot). Leave empty to use the first available model. Run 'Nuvo Commit: Select Model' to pick one."
+          }
+        }
+      },
+      {
         "id": "nuvoCommit.deprecated",
         "title": "Deprecated",
-        "order": 7,
+        "order": 8,
         "properties": {
           "nuvoCommit.apiKey": {
             "type": "string",
@@ -263,13 +365,56 @@
               "deepseek-coder:6.7b",
               "gpt-4o",
               "gpt-4o-mini",
-              "claude-sonnet-4-20250514",
-              "claude-3-5-sonnet-20241022"
+              "claude-haiku-4-5",
+              "claude-sonnet-5-5"
             ],
             "markdownDeprecationMessage": "**Deprecated:** Use provider-specific model settings such as `nuvoCommit.ollama.model`, `nuvoCommit.openai.model`, or `nuvoCommit.anthropic.model`.",
             "description": "Deprecated fallback model setting."
           }
         }
+      }
+    ],
+    "walkthroughs": [
+      {
+        "id": "gettingStarted",
+        "title": "Get Started with Nuvo Commit",
+        "description": "Pick an AI provider, check that it works, and generate your first commit message.",
+        "steps": [
+          {
+            "id": "chooseProvider",
+            "title": "Choose a provider",
+            "description": "Run models locally with Ollama, or use OpenAI or Anthropic in the cloud.\n[Choose Provider](command:nuvoCommit.settings)",
+            "media": {
+              "markdown": "walkthrough/provider.md"
+            },
+            "completionEvents": [
+              "onCommand:nuvoCommit.settings",
+              "onSettingChanged:nuvoCommit.provider"
+            ]
+          },
+          {
+            "id": "checkSetup",
+            "title": "Check your setup",
+            "description": "Send a small sample to the provider to make sure everything works. If not, you'll be pointed to the fix.\n[Check Setup](command:nuvoCommit.checkSetup)",
+            "media": {
+              "markdown": "walkthrough/check.md"
+            },
+            "completionEvents": [
+              "onContext:nuvoCommit.setupVerified"
+            ]
+          },
+          {
+            "id": "generate",
+            "title": "Generate your first commit message",
+            "description": "Stage some changes and click ✨ in the Source Control view.\n[Open Source Control](command:workbench.view.scm)",
+            "media": {
+              "markdown": "walkthrough/generate.md"
+            },
+            "completionEvents": [
+              "onCommand:nuvoCommit.generate"
+            ]
+          }
+        ]
       }
     ]
   },
@@ -289,7 +434,7 @@
   "devDependencies": {
     "@types/jest": "^29.5.12",
     "@types/node": "^20.11.0",
-    "@types/vscode": "^1.85.0",
+    "@types/vscode": "~1.90.0",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
     "@vscode/test-cli": "^0.0.9",

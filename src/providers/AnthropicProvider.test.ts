@@ -123,9 +123,9 @@ describe("AnthropicProvider", () => {
         model: mockModel,
       });
 
-      await expect(
-        provider.generateCommitMessage("diff"),
-      ).rejects.toThrow(ProviderError);
+      await expect(provider.generateCommitMessage("diff")).rejects.toThrow(
+        ProviderError,
+      );
     });
 
     it("should throw ProviderError on non-OK response", async () => {
@@ -140,9 +140,9 @@ describe("AnthropicProvider", () => {
         model: mockModel,
       });
 
-      await expect(
-        provider.generateCommitMessage("diff"),
-      ).rejects.toThrow(/Anthropic responded 401/);
+      await expect(provider.generateCommitMessage("diff")).rejects.toThrow(
+        /Anthropic responded 401/,
+      );
     });
 
     it("should throw ProviderError on empty content", async () => {
@@ -156,29 +156,40 @@ describe("AnthropicProvider", () => {
         model: mockModel,
       });
 
-      await expect(
-        provider.generateCommitMessage("diff"),
-      ).rejects.toThrow(/No response from Anthropic/);
+      await expect(provider.generateCommitMessage("diff")).rejects.toThrow(
+        /No response from Anthropic/,
+      );
     });
   });
 
   describe("listModels", () => {
-    it("should return static list of common Anthropic models", async () => {
-      const provider = new AnthropicProvider({
-        apiKey: mockApiKey,
-        model: mockModel,
+    const provider = () =>
+      new AnthropicProvider({ apiKey: mockApiKey, model: mockModel });
+
+    it("fetches models from the Models API", async () => {
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: [{ id: "claude-opus-5-5" }, { id: "claude-haiku-4-5" }],
+          }),
       });
 
-      const models = await provider.listModels();
-
-      expect(models).toEqual([
-        "claude-sonnet-4-20250514",
-        "claude-3-7-sonnet-20250219",
-        "claude-3-5-sonnet-20241022",
-        "claude-3-5-haiku-20241022",
-        "claude-3-opus-20240229",
+      expect(await provider().listModels()).toEqual([
+        "claude-opus-5-5",
+        "claude-haiku-4-5",
       ]);
-      expect(models).toHaveLength(5);
+      const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
+      expect(url).toBe("https://api.anthropic.com/v1/models?limit=1000");
+      expect(init.headers["x-api-key"]).toBe(mockApiKey);
+    });
+
+    it("falls back to a static list when the request fails", async () => {
+      (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: false });
+      expect(await provider().listModels()).toContain("claude-haiku-4-5");
+
+      (global.fetch as jest.Mock).mockRejectedValueOnce(new Error("offline"));
+      expect(await provider().listModels()).toContain("claude-haiku-4-5");
     });
   });
 });

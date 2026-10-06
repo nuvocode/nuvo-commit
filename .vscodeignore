@@ -22,3 +22,5 @@ jest.config.js
 **/*.vsix
 TESTING.md
 PUBLISHING.md
+images/*.gif
+docs/**

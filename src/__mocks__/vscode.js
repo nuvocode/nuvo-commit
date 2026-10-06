@@ -82,15 +82,36 @@ module.exports = {
     fire: jest.fn(),
     dispose: jest.fn(),
   })),
-  CancellationTokenSource: jest.fn(() => ({
-    token: {},
-    cancel: jest.fn(),
-    dispose: jest.fn(),
-  })),
+  CancellationTokenSource: jest.fn(() => {
+    const token = { isCancellationRequested: false };
+    return {
+      token,
+      cancel: jest.fn(() => {
+        token.isCancellationRequested = true;
+      }),
+      dispose: jest.fn(),
+    };
+  }),
+  lm: {
+    selectChatModels: jest.fn(async () => []),
+  },
+  LanguageModelChatMessage: {
+    User: jest.fn((content) => ({ role: "user", content })),
+  },
+  LanguageModelError: class LanguageModelError extends Error {
+    constructor(message, code = "Unknown") {
+      super(message);
+      this.code = code;
+    }
+  },
   ProgressLocation: {
     Notification: 1,
     SourceControl: 2,
     Window: 3,
+  },
+  QuickPickItemKind: {
+    Separator: -1,
+    Default: 0,
   },
   ExtensionMode: {
     Production: 1,

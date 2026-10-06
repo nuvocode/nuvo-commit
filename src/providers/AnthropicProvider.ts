@@ -157,13 +157,31 @@ export class AnthropicProvider implements Provider {
   }
 
   async listModels(): Promise<string[]> {
-    // Common Anthropic models - static list
-    return [
-      "claude-sonnet-4-20250514",
-      "claude-3-7-sonnet-20250219",
-      "claude-3-5-sonnet-20241022",
-      "claude-3-5-haiku-20241022",
-      "claude-3-opus-20240229",
-    ];
+    const endpoint = this.opts.endpoint || DEFAULT_ENDPOINT;
+    try {
+      const res = await fetchWithTimeout(
+        `${endpoint.replace(/\/messages\/?$/, "/models")}?limit=1000`,
+        {
+          headers: {
+            "x-api-key": this.opts.apiKey ?? "",
+            "anthropic-version": "2023-06-01",
+          },
+        },
+        this.opts.timeoutMs,
+      );
+      if (!res.ok) return FALLBACK_MODELS;
+      const data = (await res.json()) as { data?: Array<{ id: string }> };
+      const ids = data.data?.map((m) => m.id) ?? [];
+      return ids.length > 0 ? ids : FALLBACK_MODELS;
+    } catch {
+      return FALLBACK_MODELS;
+    }
   }
 }
+
+// ponytail: shown only when /v1/models is unreachable (no key, offline, proxy).
+const FALLBACK_MODELS = [
+  "claude-haiku-4-5",
+  "claude-sonnet-5-5",
+  "claude-opus-5-5",
+];

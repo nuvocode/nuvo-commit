@@ -5,6 +5,61 @@ All notable changes to the **Nuvo Commit** extension are documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **VS Code provider** (`nuvoCommit.provider: "vscode"`): uses the language
+  models already available in VS Code, such as GitHub Copilot — no API key or
+  local server needed. Leave `nuvoCommit.vscode.model` empty to use the first
+  available model, or pick one with **Select Model**.
+- `nuvoCommit.language` setting: generate commit messages and pull request
+  content in any language (e.g. `Turkish`). Conventional Commit types and the
+  PR's Summary/Testing headings stay in English. Defaults to `English`.
+- **Get Started with Nuvo Commit** walkthrough: choose a provider, check the
+  setup and generate the first message.
+- **Nuvo Commit: Check Setup** sends a small sample diff to the active provider.
+  On failure it offers the fix: install Ollama, copy the `ollama pull` command,
+  pick another model or set the API key.
+- Commit messages follow the repository's style: the last 15 commit headers are
+  sent as examples. Repositories that do not use Conventional Commits get
+  messages in their own style, without a `chore:` prefix.
+- Allowed types and scopes are read from the commitlint config
+  (`.commitlintrc*`, `commitlint.config.*` or `package.json`) when present.
+- `nuvoCommit.ticketId` setting: add the ticket ID from the branch name
+  (`feat/ABC-123-login` → `ABC-123`) as a `Refs:` footer or before the subject.
+  Off by default. `nuvoCommit.ticketPattern` sets the regular expression.
+- `nuvoCommit.suggestions` setting: generate up to 5 commit messages at once and
+  pick one from a list. Each suggestion takes a different angle (user-facing
+  effect, changed code, shorter) and duplicates are dropped. Defaults to `1`.
+- `nuvoCommit.style` setting: `conventional` (default), `gitmoji`
+  (`✨ auth: add login`, with 💥 for breaking changes) or `plain` (`Add login`).
+- `nuvoCommit.gitmoji` setting to override the emoji per type (`breaking` for
+  `!` headers).
+- `Cmd+Alt+G` / `Ctrl+Alt+G` generates a commit message while the Source
+  Control view is focused.
+
+### Changed
+
+- **Select Model** now fetches the live model list from OpenAI (and
+  OpenAI-compatible endpoints) and Anthropic, falling back to a short built-in
+  list when the request fails.
+- The default Anthropic model is now `claude-haiku-4-5`.
+- Requires VS Code 1.90 or newer (Language Model API).
+
+### Fixed
+
+- Ollama thinking models (e.g. qwen3, gemma4) no longer return the generic
+  `chore: update staged changes` message: requests now send `think: false`, so
+  the token budget goes to the answer instead of hidden reasoning.
+- Reasoning models on OpenAI-compatible endpoints (e.g. Ollama's `/v1`, Groq,
+  Gemini) no longer return the generic `chore: update staged changes` message:
+  when a response comes back empty, the request is retried once with
+  `reasoning_effort: "none"`. If the service rejects that, a clear error
+  suggests a non-reasoning model.
+- **Settings → Model** now lists the provider's models (e.g. the installed
+  Ollama models) like **Select Model**, instead of asking for a name.
+
 ## [1.3.0] - 2026-09-25
 
 ### Added

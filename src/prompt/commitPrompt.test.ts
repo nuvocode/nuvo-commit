@@ -32,6 +32,13 @@ describe("buildCommitPrompt", () => {
     expect(prompt).toContain("Consider all changed files");
   });
 
+  it("should put the hint right before the answer", () => {
+    const prompt = buildCommitPrompt("diff content", { hint: "Be brief." });
+
+    expect(prompt.endsWith("Be brief.\n\nCommit message:")).toBe(true);
+    expect(buildCommitPrompt("diff content")).not.toContain("Be brief.");
+  });
+
   it("should include balanced truncation context when provided", () => {
     const prompt = buildCommitPrompt("diff content", {
       truncated: true,
@@ -41,5 +48,68 @@ describe("buildCommitPrompt", () => {
     expect(prompt).toContain("Partially included files: src/large.ts");
     expect(prompt).toContain("Diff context is balanced across files");
     expect(prompt).toContain("Do not focus only on the first file.");
+  });
+
+  it("asks for the configured language but keeps types in English", () => {
+    const prompt = buildCommitPrompt("diff", { language: "Turkish" });
+
+    expect(prompt).toContain(
+      "Write the subject and body in Turkish, not English.",
+    );
+    expect(
+      prompt.endsWith(
+        'English, e.g. "fix(api): <subject in Turkish>".\n\nCommit message:',
+      ),
+    ).toBe(true);
+    expect(prompt).toContain("Keep the type (feat, fix");
+  });
+
+  it("adds no language rule for English or empty", () => {
+    for (const language of [undefined, "", "English", " english "]) {
+      expect(buildCommitPrompt("diff", { language })).not.toContain(
+        "LANGUAGE:",
+      );
+    }
+  });
+
+  it("should use the repository's types, scopes and recent commits", () => {
+    const prompt = buildCommitPrompt("diff content", {
+      types: ["feat", "deps"],
+      scopes: ["api", "web"],
+      examples: ["feat(api): add users endpoint"],
+    });
+
+    expect(prompt).toContain("type must be one of: feat, deps.");
+    expect(prompt).toContain("scope, if used, must be one of: api, web.");
+    expect(prompt).toContain("Recent commits in this repository");
+    expect(prompt).toContain("feat(api): add users endpoint");
+  });
+
+  it("should follow the recent commits when the repo is not conventional", () => {
+    const prompt = buildCommitPrompt("diff content", {
+      conventional: false,
+      examples: ["Add login page"],
+    });
+
+    expect(prompt).toContain("You write git commit messages");
+    expect(prompt).toContain("Follow the style of the recent commits");
+    expect(prompt).not.toContain("type must be one of");
+    expect(prompt).not.toContain("feat(auth): add token validation");
+    expect(prompt).toContain("Add login page");
+  });
+
+  it("keeps the language rule in line with the commit style", () => {
+    expect(
+      buildCommitPrompt("diff", {
+        language: "Turkish",
+        types: ["feat", "deps"],
+      }),
+    ).toContain("Keep the type (feat, deps)");
+    const freeform = buildCommitPrompt("diff", {
+      language: "Turkish",
+      conventional: false,
+    });
+    expect(freeform).toContain("Write the commit message in Turkish");
+    expect(freeform).not.toContain("Keep the type");
   });
 });

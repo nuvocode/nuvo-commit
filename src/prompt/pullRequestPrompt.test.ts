@@ -32,4 +32,14 @@ describe("buildPullRequestPrompt", () => {
 
     expect(prompt).not.toContain("Commit summary:");
   });
+
+  it("asks for the configured language but keeps headings in English", () => {
+    const prompt = buildPullRequestPrompt("diff", { language: "German" });
+
+    expect(prompt).toContain(
+      "Write the title and body in German, not English.",
+    );
+    expect(prompt).toContain('"Summary" and "Testing" headings in English');
+    expect(buildPullRequestPrompt("diff")).not.toContain("LANGUAGE:");
+  });
 });

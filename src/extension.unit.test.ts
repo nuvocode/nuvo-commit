@@ -1,9 +1,11 @@
 import * as vscode from "vscode";
 
 import packageJson from "../package.json";
+import { OllamaProvider, ProviderRegistry } from "./providers";
 import {
   buildGitCommitArgs,
   configureProviderSettings,
+  generateSuggestions,
   getApiKeySecret,
   getProviderSettingKey,
   openGitHubPullRequestCreate,
@@ -129,7 +131,7 @@ describe("extension helpers", () => {
     expect(properties["nuvoCommit.anthropic.model"]).toEqual(
       expect.objectContaining({
         type: "string",
-        default: "claude-3-5-sonnet-20241022",
+        default: "claude-haiku-4-5",
       }),
     );
     expect(properties["nuvoCommit.anthropic.endpoint"]).toEqual(
@@ -278,24 +280,35 @@ describe("extension helpers", () => {
     ]);
   });
 
-  it("should configure the active provider model from focused settings", async () => {
+  it("should list the provider's models from focused settings", async () => {
     const { update } = mockNuvoConfig({
-      provider: "openai",
-      "openai.model": "gpt-4o-mini",
-      "openai.endpoint": "",
+      provider: "ollama",
+      "ollama.model": "qwen3:4b",
+      "ollama.endpoint": "http://localhost:11434/api/generate",
     });
+    ProviderRegistry.register("ollama", OllamaProvider);
+    const fetchMock = jest
+      .spyOn(global, "fetch")
+      .mockResolvedValue(
+        new Response(JSON.stringify({ models: [{ name: "gemma4:e2b" }] })),
+      );
     const showQuickPick = vscode.window.showQuickPick as jest.Mock;
-    const showInputBox = vscode.window.showInputBox as jest.Mock;
-    showQuickPick.mockResolvedValueOnce({ action: "model" });
-    showInputBox.mockResolvedValueOnce("gpt-4o");
+    showQuickPick
+      .mockResolvedValueOnce({ action: "model" })
+      .mockResolvedValueOnce({ label: "gemma4:e2b" });
 
     await configureProviderSettings();
 
+    const labels = showQuickPick.mock.calls[1][0].map(
+      (item: { label: string }) => item.label,
+    );
+    expect(labels).toContain("gemma4:e2b");
     expect(update).toHaveBeenCalledWith(
-      "openai.model",
-      "gpt-4o",
+      "ollama.model",
+      "gemma4:e2b",
       vscode.ConfigurationTarget.Global,
     );
+    fetchMock.mockRestore();
   });
 
   it("should configure the active provider endpoint from focused settings", async () => {
@@ -408,6 +421,7 @@ describe("settings layout", () => {
       "Ollama",
       "OpenAI",
       "Anthropic",
+      "VS Code",
       "Deprecated",
     ]);
   });
@@ -417,6 +431,16 @@ describe("statusBarText", () => {
   it("shows the active provider and model", () => {
     mockNuvoConfig({ provider: "openai", "openai.model": "gpt-4o" });
     expect(statusBarText(readSettings())).toBe("$(sparkle) OpenAI: gpt-4o");
+  });
+
+  it("shows Auto when the vscode provider has no model", () => {
+    mockNuvoConfig({ provider: "vscode" });
+    expect(statusBarText(readSettings())).toBe("$(sparkle) VS Code: Auto");
+  });
+
+  it("ignores legacy model settings for the vscode provider", () => {
+    mockNuvoConfig({ provider: "vscode", model: "qwen3:4b" });
+    expect(readSettings().model).toBe("");
   });
 });
 
@@ -432,5 +456,52 @@ describe("orderBaseBranches", () => {
   it("keeps order when the default is missing or unknown", () => {
     expect(orderBaseBranches(["a", "b"])).toEqual(["a", "b"]);
     expect(orderBaseBranches(["a", "b"], "main")).toEqual(["a", "b"]);
+  });
+});
+
+describe("generateSuggestions", () => {
+  const providerReturning = (...results: (string | Error)[]) => {
+    const generateCommitMessage = jest.fn();
+    for (const r of results) {
+      if (r instanceof Error) generateCommitMessage.mockRejectedValueOnce(r);
+      else generateCommitMessage.mockResolvedValueOnce(r);
+    }
+    return { generateCommitMessage };
+  };
+
+  it("makes a single call with the default temperature", async () => {
+    const provider = providerReturning("feat: a");
+    expect(await generateSuggestions(provider, "diff", {}, 1)).toEqual([
+      "feat: a",
+    ]);
+    expect(provider.generateCommitMessage).toHaveBeenCalledWith("diff", {});
+  });
+
+  it("drops duplicates and failed calls", async () => {
+    const provider = providerReturning(
+      "feat: a",
+      new Error("timeout"),
+      "feat: a",
+      "chore: update staged changes",
+      "fix: b",
+    );
+    expect(await generateSuggestions(provider, "diff", {}, 5)).toEqual([
+      "feat: a",
+      "fix: b",
+    ]);
+    expect(provider.generateCommitMessage).toHaveBeenNthCalledWith(1, "diff", {
+      temperature: 0.8,
+      hint: undefined,
+    });
+    expect(provider.generateCommitMessage.mock.calls[1][1].hint).toContain(
+      "effect for users",
+    );
+  });
+
+  it("throws the first error when every call fails", async () => {
+    const provider = providerReturning(new Error("down"), new Error("down 2"));
+    await expect(generateSuggestions(provider, "diff", {}, 2)).rejects.toThrow(
+      "down",
+    );
   });
 });
