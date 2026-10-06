@@ -1,3 +1,6 @@
+import { CommitMessageOptions } from "../commitMessage";
+import { PullRequestContent, PullRequestContentOptions } from "../pullRequest";
+
 export interface ProviderConfig {
   /** Model identifier passed to the provider. */
   model: string;
@@ -11,7 +14,14 @@ export interface ProviderConfig {
 
 export interface Provider {
   readonly name: string;
-  generateCommitMessage(diff: string): Promise<string>;
+  generateCommitMessage(
+    diff: string,
+    options?: CommitMessageOptions,
+  ): Promise<string>;
+  generatePullRequestContent(
+    diff: string,
+    options?: PullRequestContentOptions,
+  ): Promise<PullRequestContent>;
   listModels?(): Promise<string[]>;
 }
 
@@ -26,6 +36,8 @@ export class ProviderError extends Error {
 }
 
 export type ProviderConstructor = new (config: ProviderConfig) => Provider;
+
+export { CommitMessageOptions };
 
 export class ProviderRegistry {
   private static providers = new Map<string, ProviderConstructor>();

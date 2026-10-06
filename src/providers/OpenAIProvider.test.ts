@@ -79,6 +79,41 @@ describe("OpenAIProvider", () => {
       );
     });
 
+    it("should allow body output when requested", async () => {
+      const mockResponse = {
+        choices: [
+          {
+            message: {
+              content:
+                "fix: handle empty response\n\nReturn a clear error for missing data.",
+            },
+          },
+        ],
+      };
+
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const provider = new OpenAIProvider({
+        apiKey: mockApiKey,
+        model: mockModel,
+      });
+
+      const message = await provider.generateCommitMessage("diff content", {
+        includeBody: true,
+      });
+      const callArgs = (global.fetch as jest.Mock).mock.calls[0];
+      const body = JSON.parse(callArgs[1].body);
+
+      expect(message).toBe(
+        "fix: handle empty response\n\nReturn a clear error for missing data.",
+      );
+      expect(body.messages[1].content).toContain("Then one blank line.");
+      expect(body.max_tokens).toBe(300);
+    });
+
     it("should throw ProviderError on network error", async () => {
       (global.fetch as jest.Mock).mockRejectedValueOnce(
         new Error("Network error"),
@@ -89,9 +124,9 @@ describe("OpenAIProvider", () => {
         model: mockModel,
       });
 
-      await expect(
-        provider.generateCommitMessage("diff"),
-      ).rejects.toThrow(ProviderError);
+      await expect(provider.generateCommitMessage("diff")).rejects.toThrow(
+        ProviderError,
+      );
     });
 
     it("should throw ProviderError on non-OK response", async () => {
@@ -106,9 +141,9 @@ describe("OpenAIProvider", () => {
         model: mockModel,
       });
 
-      await expect(
-        provider.generateCommitMessage("diff"),
-      ).rejects.toThrow(/OpenAI responded 401/);
+      await expect(provider.generateCommitMessage("diff")).rejects.toThrow(
+        /OpenAI responded 401/,
+      );
     });
 
     it("should throw ProviderError on empty choices", async () => {
@@ -122,29 +157,62 @@ describe("OpenAIProvider", () => {
         model: mockModel,
       });
 
-      await expect(
-        provider.generateCommitMessage("diff"),
-      ).rejects.toThrow(/No response from OpenAI/);
+      await expect(provider.generateCommitMessage("diff")).rejects.toThrow(
+        /No response from OpenAI/,
+      );
     });
   });
 
   describe("listModels", () => {
-    it("should return static list of common OpenAI models", async () => {
+    it("fetches chat models from /models, hiding non-chat models", async () => {
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: [
+              { id: "gpt-4o" },
+              { id: "text-embedding-3-small" },
+              { id: "gpt-4o-mini" },
+              { id: "whisper-1" },
+            ],
+          }),
+      });
+
       const provider = new OpenAIProvider({
         apiKey: mockApiKey,
         model: mockModel,
       });
 
-      const models = await provider.listModels();
+      expect(await provider.listModels()).toEqual(["gpt-4o", "gpt-4o-mini"]);
+      expect((global.fetch as jest.Mock).mock.calls[0][0]).toBe(
+        "https://api.openai.com/v1/models",
+      );
+    });
 
-      expect(models).toEqual([
-        "gpt-4o",
-        "gpt-4o-mini",
-        "gpt-4-turbo",
-        "gpt-4",
-        "gpt-3.5-turbo",
-      ]);
-      expect(models).toHaveLength(5);
+    it("derives /models from a custom compatible endpoint", async () => {
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: [{ id: "local-model" }] }),
+      });
+
+      const provider = new OpenAIProvider({
+        model: "local-model",
+        endpoint: "http://localhost:1234/v1/chat/completions",
+      });
+
+      expect(await provider.listModels()).toEqual(["local-model"]);
+      expect((global.fetch as jest.Mock).mock.calls[0][0]).toBe(
+        "http://localhost:1234/v1/models",
+      );
+    });
+
+    it("falls back to a static list when the request fails", async () => {
+      (global.fetch as jest.Mock).mockRejectedValueOnce(new Error("offline"));
+      const provider = new OpenAIProvider({
+        apiKey: mockApiKey,
+        model: mockModel,
+      });
+      expect(await provider.listModels()).toContain("gpt-4o-mini");
     });
   });
 });

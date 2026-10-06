@@ -1,5 +1,14 @@
 import { buildCommitPrompt } from "../prompt/commitPrompt";
-import { Provider, ProviderConfig, ProviderError } from "./Provider";
+import { buildPullRequestPrompt } from "../prompt/pullRequestPrompt";
+import {
+  CommitMessageOptions,
+  Provider,
+  ProviderConfig,
+  ProviderError,
+} from "./Provider";
+import { PullRequestContent, PullRequestContentOptions } from "../pullRequest";
+import { sanitizeCommitMessage } from "../utils/sanitize";
+import { sanitizePullRequestContent } from "../utils/pullRequestContent";
 import { fetchWithTimeout } from "./http";
 
 const DEFAULT_ENDPOINT = "http://localhost:11434/api/generate";
@@ -30,8 +39,11 @@ export class OllamaProvider implements Provider {
     return this.opts.endpoint ?? DEFAULT_ENDPOINT;
   }
 
-  async generateCommitMessage(diff: string): Promise<string> {
-    const prompt = buildCommitPrompt(diff);
+  async generateCommitMessage(
+    diff: string,
+    options: CommitMessageOptions = {},
+  ): Promise<string> {
+    const prompt = buildCommitPrompt(diff, options);
 
     let res: Response;
     try {
@@ -47,8 +59,10 @@ export class OllamaProvider implements Provider {
             options: {
               temperature: 0.2,
               top_p: 0.9,
-              num_predict: 80,
-              stop: ["\n\n", "```", "Here", "This commit"],
+              num_predict: options.includeBody ? 180 : 80,
+              stop: options.includeBody
+                ? ["```", "Here", "This commit"]
+                : ["\n\n", "```", "Here", "This commit"],
             },
           }),
         },
@@ -80,7 +94,63 @@ export class OllamaProvider implements Provider {
       throw new ProviderError(`Ollama error: ${data.error}`);
     }
 
-    return stripThinking(data.response ?? "");
+    return sanitizeCommitMessage(stripThinking(data.response ?? ""), options);
+  }
+
+  async generatePullRequestContent(
+    diff: string,
+    options: PullRequestContentOptions = {},
+  ): Promise<PullRequestContent> {
+    const prompt = buildPullRequestPrompt(diff, options);
+
+    let res: Response;
+    try {
+      res = await fetchWithTimeout(
+        this.endpoint,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: this.opts.model,
+            prompt,
+            stream: false,
+            options: {
+              temperature: 0.2,
+              top_p: 0.9,
+              num_predict: 500,
+              stop: ["```", "Here", "This pull request"],
+            },
+          }),
+        },
+        this.opts.timeoutMs,
+      );
+    } catch (err) {
+      if (err instanceof ProviderError) throw err;
+      throw new ProviderError(
+        `Cannot reach Ollama at ${this.endpoint}. Is it running?`,
+        err,
+      );
+    }
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new ProviderError(
+        `Ollama responded ${res.status}: ${body.slice(0, 200)}`,
+      );
+    }
+
+    let data: OllamaGenerateResponse;
+    try {
+      data = (await res.json()) as OllamaGenerateResponse;
+    } catch (err) {
+      throw new ProviderError("Invalid JSON from Ollama", err);
+    }
+
+    if (data.error) {
+      throw new ProviderError(`Ollama error: ${data.error}`);
+    }
+
+    return sanitizePullRequestContent(stripThinking(data.response ?? ""));
   }
 
   async listModels(): Promise<string[]> {

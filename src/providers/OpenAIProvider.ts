@@ -1,5 +1,14 @@
 import { buildCommitPrompt } from "../prompt/commitPrompt";
-import { Provider, ProviderConfig, ProviderError } from "./Provider";
+import { buildPullRequestPrompt } from "../prompt/pullRequestPrompt";
+import {
+  CommitMessageOptions,
+  Provider,
+  ProviderConfig,
+  ProviderError,
+} from "./Provider";
+import { PullRequestContent, PullRequestContentOptions } from "../pullRequest";
+import { sanitizeCommitMessage } from "../utils/sanitize";
+import { sanitizePullRequestContent } from "../utils/pullRequestContent";
 import { fetchWithTimeout } from "./http";
 
 const DEFAULT_ENDPOINT = "https://api.openai.com/v1/chat/completions";
@@ -20,8 +29,11 @@ export class OpenAIProvider implements Provider {
 
   constructor(private readonly opts: ProviderConfig) {}
 
-  async generateCommitMessage(diff: string): Promise<string> {
-    const prompt = buildCommitPrompt(diff);
+  async generateCommitMessage(
+    diff: string,
+    options: CommitMessageOptions = {},
+  ): Promise<string> {
+    const prompt = buildCommitPrompt(diff, options);
     const endpoint = this.opts.endpoint || DEFAULT_ENDPOINT;
 
     let res: Response;
@@ -48,7 +60,7 @@ export class OpenAIProvider implements Provider {
               },
             ],
             temperature: 0.2,
-            max_tokens: 150,
+            max_tokens: options.includeBody ? 300 : 150,
           }),
         },
         this.opts.timeoutMs,
@@ -83,11 +95,106 @@ export class OpenAIProvider implements Provider {
       throw new ProviderError("No response from OpenAI");
     }
 
-    return data.choices[0].message.content.trim();
+    return sanitizeCommitMessage(
+      data.choices[0].message.content.trim(),
+      options,
+    );
+  }
+
+  async generatePullRequestContent(
+    diff: string,
+    options: PullRequestContentOptions = {},
+  ): Promise<PullRequestContent> {
+    const prompt = buildPullRequestPrompt(diff, options);
+    const endpoint = this.opts.endpoint || DEFAULT_ENDPOINT;
+
+    let res: Response;
+    try {
+      res = await fetchWithTimeout(
+        endpoint,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.opts.apiKey ?? ""}`,
+          },
+          body: JSON.stringify({
+            model: this.opts.model,
+            messages: [
+              {
+                role: "system",
+                content:
+                  "You are a helpful assistant that generates concise GitHub pull request titles and descriptions.",
+              },
+              {
+                role: "user",
+                content: prompt,
+              },
+            ],
+            temperature: 0.2,
+            max_tokens: 700,
+          }),
+        },
+        this.opts.timeoutMs,
+      );
+    } catch (err) {
+      if (err instanceof ProviderError) throw err;
+      throw new ProviderError(
+        `Cannot reach OpenAI API at ${endpoint}. Check your connection and API key.`,
+        err,
+      );
+    }
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new ProviderError(
+        `OpenAI responded ${res.status}: ${body.slice(0, 200)}`,
+      );
+    }
+
+    let data: OpenAIChatResponse;
+    try {
+      data = (await res.json()) as OpenAIChatResponse;
+    } catch (err) {
+      throw new ProviderError("Invalid JSON from OpenAI", err);
+    }
+
+    if (data.error) {
+      throw new ProviderError(`OpenAI error: ${data.error.message}`);
+    }
+
+    if (!data.choices || data.choices.length === 0) {
+      throw new ProviderError("No response from OpenAI");
+    }
+
+    return sanitizePullRequestContent(data.choices[0].message.content.trim());
   }
 
   async listModels(): Promise<string[]> {
-    // Common OpenAI models - static list
-    return ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo"];
+    // Works for OpenAI-compatible servers too (LM Studio, OpenRouter, Groq…).
+    const endpoint = this.opts.endpoint || DEFAULT_ENDPOINT;
+    try {
+      const res = await fetchWithTimeout(
+        endpoint.replace(/\/chat\/completions\/?$/, "/models"),
+        { headers: { Authorization: `Bearer ${this.opts.apiKey ?? ""}` } },
+        this.opts.timeoutMs,
+      );
+      if (!res.ok) return FALLBACK_MODELS;
+      const data = (await res.json()) as { data?: Array<{ id: string }> };
+      const ids = (data.data ?? [])
+        .map((m) => m.id)
+        .filter((id) => !NON_CHAT_MODEL.test(id))
+        .sort();
+      return ids.length > 0 ? ids : FALLBACK_MODELS;
+    } catch {
+      return FALLBACK_MODELS;
+    }
   }
 }
+
+// /v1/models also returns embedding, audio and image models; hide those.
+const NON_CHAT_MODEL =
+  /embedding|whisper|tts|dall-e|image|audio|realtime|transcribe|moderation|davinci|babbage/i;
+
+// ponytail: shown only when /v1/models is unreachable (no key, offline).
+const FALLBACK_MODELS = ["gpt-4o-mini", "gpt-4o"];

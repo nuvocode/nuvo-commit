@@ -5,6 +5,72 @@ All notable changes to the **Nuvo Commit** extension are documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Select Model** now fetches the live model list from OpenAI (and
+  OpenAI-compatible endpoints) and Anthropic, falling back to a short built-in
+  list when the request fails.
+- The default Anthropic model is now `claude-haiku-4-5`.
+
+## [1.3.0] - 2026-09-25
+
+### Added
+
+- **Generate Pull Request Content** now asks for the target branch. The default
+  (`nuvoCommit.pullRequestBaseBranch`, then `origin/HEAD`, `main`, `master`) is
+  listed first, so pressing Enter keeps the previous behavior.
+- Status bar item showing the active provider and model. Click it to switch
+  provider, model, endpoint or API key.
+
+### Changed
+
+- Settings are grouped into sections: General, Pull Requests, Provider, Ollama,
+  OpenAI, Anthropic and Deprecated. Setting keys are unchanged.
+- The extension activates on startup so the status bar item is always visible.
+
+### Fixed
+
+- Commit messages can be generated when only media or other binary files
+  changed; the file path and change type are sent to the model.
+
+## [1.2.0] - 2026-06-25
+
+### Added
+
+- Provider-specific model and endpoint settings for Ollama, OpenAI, and Anthropic.
+- Provider-specific secure API key storage for OpenAI and Anthropic.
+- Focused **Nuvo Commit: Settings** flow that shows only the selected provider's
+  relevant configuration fields.
+
+### Changed
+
+- **Nuvo Commit: Select Model** now saves the model for the active provider only,
+  so switching providers no longer overwrites other provider configurations.
+- Deprecated `nuvoCommit.model`, `nuvoCommit.endpoint`, and `nuvoCommit.apiKey`
+  remain available as upgrade fallbacks.
+
+## [1.1.1] - 2026-06-13
+
+### Added
+
+- `nuvoCommit.includeBody` setting for optional `header + body` commit messages.
+
+### Changed
+
+- Conventional Commit headers now use a 72-character limit instead of 50
+  characters.
+- Provider prompts now ask for complete, concise headers and support the
+  optional body mode.
+
+### Fixed
+
+- Sanitization now avoids leaving truncated commit headers ending with weak
+  words such as `and`, `with`, or `for`.
+- `autoCommit` now passes multiline messages as `git commit -m <header> -m
+  <body>`.
+
 ## [1.0.0] - 2026-05-22
 
 First stable release. No new features compared to `0.1.x` — this release hardens
@@ -63,6 +129,9 @@ the extension for production use.
 - `Nuvo Commit: Select Model` command with automatic model discovery for Ollama.
 - `autoAccept` and `autoCommit` settings.
 
+[1.3.0]: https://github.com/nuvocode/nuvo-commit/releases/tag/v1.3.0
+[1.2.0]: https://github.com/nuvocode/nuvo-commit/releases/tag/v1.2.0
+[1.1.1]: https://github.com/nuvocode/nuvo-commit/releases/tag/v1.1.1
 [1.0.0]: https://github.com/nuvocode/nuvo-commit/releases/tag/v1.0.0
 [0.1.1]: https://github.com/nuvocode/nuvo-commit/releases/tag/v0.1.1
 [0.1.0]: https://github.com/nuvocode/nuvo-commit/releases/tag/v0.1.0

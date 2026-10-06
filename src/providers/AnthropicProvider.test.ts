@@ -80,6 +80,39 @@ describe("AnthropicProvider", () => {
       );
     });
 
+    it("should allow body output when requested", async () => {
+      const mockResponse = {
+        content: [
+          {
+            type: "text",
+            text: "fix: handle empty response\n\nReturn a clear error for missing data.",
+          },
+        ],
+      };
+
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      });
+
+      const provider = new AnthropicProvider({
+        apiKey: mockApiKey,
+        model: mockModel,
+      });
+
+      const message = await provider.generateCommitMessage("diff content", {
+        includeBody: true,
+      });
+      const callArgs = (global.fetch as jest.Mock).mock.calls[0];
+      const body = JSON.parse(callArgs[1].body);
+
+      expect(message).toBe(
+        "fix: handle empty response\n\nReturn a clear error for missing data.",
+      );
+      expect(body.messages[0].content).toContain("Then one blank line.");
+      expect(body.max_tokens).toBe(300);
+    });
+
     it("should throw ProviderError on network error", async () => {
       (global.fetch as jest.Mock).mockRejectedValueOnce(
         new Error("Network error"),
@@ -90,9 +123,9 @@ describe("AnthropicProvider", () => {
         model: mockModel,
       });
 
-      await expect(
-        provider.generateCommitMessage("diff"),
-      ).rejects.toThrow(ProviderError);
+      await expect(provider.generateCommitMessage("diff")).rejects.toThrow(
+        ProviderError,
+      );
     });
 
     it("should throw ProviderError on non-OK response", async () => {
@@ -107,9 +140,9 @@ describe("AnthropicProvider", () => {
         model: mockModel,
       });
 
-      await expect(
-        provider.generateCommitMessage("diff"),
-      ).rejects.toThrow(/Anthropic responded 401/);
+      await expect(provider.generateCommitMessage("diff")).rejects.toThrow(
+        /Anthropic responded 401/,
+      );
     });
 
     it("should throw ProviderError on empty content", async () => {
@@ -123,29 +156,40 @@ describe("AnthropicProvider", () => {
         model: mockModel,
       });
 
-      await expect(
-        provider.generateCommitMessage("diff"),
-      ).rejects.toThrow(/No response from Anthropic/);
+      await expect(provider.generateCommitMessage("diff")).rejects.toThrow(
+        /No response from Anthropic/,
+      );
     });
   });
 
   describe("listModels", () => {
-    it("should return static list of common Anthropic models", async () => {
-      const provider = new AnthropicProvider({
-        apiKey: mockApiKey,
-        model: mockModel,
+    const provider = () =>
+      new AnthropicProvider({ apiKey: mockApiKey, model: mockModel });
+
+    it("fetches models from the Models API", async () => {
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: [{ id: "claude-opus-5-5" }, { id: "claude-haiku-4-5" }],
+          }),
       });
 
-      const models = await provider.listModels();
-
-      expect(models).toEqual([
-        "claude-sonnet-4-20250514",
-        "claude-3-7-sonnet-20250219",
-        "claude-3-5-sonnet-20241022",
-        "claude-3-5-haiku-20241022",
-        "claude-3-opus-20240229",
+      expect(await provider().listModels()).toEqual([
+        "claude-opus-5-5",
+        "claude-haiku-4-5",
       ]);
-      expect(models).toHaveLength(5);
+      const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
+      expect(url).toBe("https://api.anthropic.com/v1/models?limit=1000");
+      expect(init.headers["x-api-key"]).toBe(mockApiKey);
+    });
+
+    it("falls back to a static list when the request fails", async () => {
+      (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: false });
+      expect(await provider().listModels()).toContain("claude-haiku-4-5");
+
+      (global.fetch as jest.Mock).mockRejectedValueOnce(new Error("offline"));
+      expect(await provider().listModels()).toContain("claude-haiku-4-5");
     });
   });
 });

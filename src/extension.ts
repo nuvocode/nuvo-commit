@@ -2,19 +2,47 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import * as vscode from "vscode";
 
-import { getStagedDiff, getWorkingDiff, GitError } from "./git/diff";
-import { Provider, ProviderError, ProviderRegistry } from "./providers/Provider";
+import {
+  getCurrentBranch,
+  getPullRequestDiff,
+  getStagedDiff,
+  getWorkingDiff,
+  GitError,
+  listBaseBranchCandidates,
+  resolvePullRequestBaseBranch,
+} from "./git/diff";
+import {
+  Provider,
+  ProviderError,
+  ProviderRegistry,
+} from "./providers/Provider";
 import { OllamaProvider } from "./providers/OllamaProvider";
 import { OpenAIProvider } from "./providers/OpenAIProvider";
 import { AnthropicProvider } from "./providers/AnthropicProvider";
+import { CommitMessageOptions } from "./commitMessage";
+import { PullRequestContent, PullRequestContentOptions } from "./pullRequest";
 import { buildProviderConfig, requiresApiKey } from "./providers/config";
 import { optimizeDiff } from "./utils/optimizeDiff";
-import { sanitizeCommitMessage } from "./utils/sanitize";
 
 const execFileAsync = promisify(execFile);
 
-/** Key under which the cloud provider API key is stored in SecretStorage. */
-const API_KEY_SECRET = "nuvoCommit.apiKey";
+const PROVIDER_DEFAULTS: Record<string, { model: string; endpoint: string }> = {
+  ollama: {
+    model: "qwen3:4b",
+    endpoint: "http://localhost:11434/api/generate",
+  },
+  openai: {
+    model: "gpt-4o-mini",
+    endpoint: "",
+  },
+  anthropic: {
+    model: "claude-haiku-4-5",
+    endpoint: "",
+  },
+};
+
+/** Legacy key kept as fallback for users upgrading from older versions. */
+const LEGACY_API_KEY_SECRET = "nuvoCommit.apiKey";
 
 /** Set during `activate`; the only handle to VS Code's encrypted storage. */
 let secretStorage: vscode.SecretStorage | undefined;
@@ -26,28 +54,107 @@ interface Settings {
   maxDiffChars: number;
   autoCommit: boolean;
   autoAccept: boolean;
+  includeBody: boolean;
+  pullRequestBaseBranch: string;
+  pullRequestOpenCreateView: boolean;
+  pullRequestIncludeCommitList: boolean;
   requestTimeoutMs: number;
 }
 
-function readSettings(): Settings {
+export function getProviderSettingKey(
+  provider: string,
+  setting: "model" | "endpoint",
+): string {
+  return `${provider}.${setting}`;
+}
+
+export function getApiKeySecret(provider: string): string {
+  return `nuvoCommit.${provider}.apiKey`;
+}
+
+function getProviderDefaults(provider: string): {
+  model: string;
+  endpoint: string;
+} {
+  return PROVIDER_DEFAULTS[provider] ?? PROVIDER_DEFAULTS.ollama;
+}
+
+function readConfiguredString(
+  cfg: vscode.WorkspaceConfiguration,
+  key: string,
+): string | undefined {
+  if (typeof cfg.inspect === "function") {
+    const inspected = cfg.inspect<string>(key);
+    for (const value of [
+      inspected?.workspaceFolderValue,
+      inspected?.workspaceValue,
+      inspected?.globalValue,
+    ]) {
+      if (typeof value === "string") return value;
+    }
+    return undefined;
+  }
+
+  return cfg.get<string | undefined>(key, undefined);
+}
+
+function readProviderStringSetting(
+  cfg: vscode.WorkspaceConfiguration,
+  provider: string,
+  setting: "model" | "endpoint",
+  defaultValue: string,
+): string {
+  return (
+    readConfiguredString(cfg, getProviderSettingKey(provider, setting)) ??
+    defaultValue
+  );
+}
+
+export function readSettings(): Settings {
   const cfg = vscode.workspace.getConfiguration("nuvoCommit");
+  const provider = cfg.get<string>("provider", "ollama");
+  const defaults = getProviderDefaults(provider);
+  const legacyModel = readConfiguredString(cfg, "model");
+  const legacyEndpoint = readConfiguredString(cfg, "endpoint");
+
   return {
-    provider: cfg.get<string>("provider", "ollama"),
-    model: cfg.get<string>("model", "qwen3:4b"),
-    endpoint: cfg.get<string>(
+    provider,
+    model: readProviderStringSetting(
+      cfg,
+      provider,
+      "model",
+      legacyModel ?? defaults.model,
+    ),
+    endpoint: readProviderStringSetting(
+      cfg,
+      provider,
       "endpoint",
-      "http://localhost:11434/api/generate",
+      legacyEndpoint ?? defaults.endpoint,
     ),
     maxDiffChars: cfg.get<number>("maxDiffChars", 12000),
     autoCommit: cfg.get<boolean>("autoCommit", false),
     autoAccept: cfg.get<boolean>("autoAccept", true),
+    includeBody: cfg.get<boolean>("includeBody", false),
+    pullRequestBaseBranch: cfg.get<string>("pullRequestBaseBranch", ""),
+    pullRequestOpenCreateView: cfg.get<boolean>(
+      "pullRequestOpenCreateView",
+      true,
+    ),
+    pullRequestIncludeCommitList: cfg.get<boolean>(
+      "pullRequestIncludeCommitList",
+      true,
+    ),
     requestTimeoutMs: cfg.get<number>("requestTimeoutMs", 30000),
   };
 }
 
-async function getApiKey(): Promise<string> {
+async function getApiKey(provider: string): Promise<string> {
   if (!secretStorage) return "";
-  return (await secretStorage.get(API_KEY_SECRET)) ?? "";
+  return (
+    (await secretStorage.get(getApiKeySecret(provider))) ??
+    (await secretStorage.get(LEGACY_API_KEY_SECRET)) ??
+    ""
+  );
 }
 
 async function buildProvider(settings: Settings): Promise<Provider> {
@@ -56,7 +163,9 @@ async function buildProvider(settings: Settings): Promise<Provider> {
     throw new ProviderError(`Unknown provider: ${settings.provider}`);
   }
 
-  const apiKey = requiresApiKey(settings.provider) ? await getApiKey() : "";
+  const apiKey = requiresApiKey(settings.provider)
+    ? await getApiKey(settings.provider)
+    : "";
   const config = buildProviderConfig({
     provider: settings.provider,
     model: settings.model,
@@ -74,13 +183,34 @@ function getRepoRoot(): string | undefined {
   return folders[0].uri.fsPath;
 }
 
-async function generateOnce(provider: Provider, diff: string): Promise<string> {
-  const raw = await provider.generateCommitMessage(diff);
-  return sanitizeCommitMessage(raw);
+async function generateOnce(
+  provider: Provider,
+  diff: string,
+  options: CommitMessageOptions,
+): Promise<string> {
+  return provider.generateCommitMessage(diff, options);
+}
+
+async function generatePullRequestContentOnce(
+  provider: Provider,
+  diff: string,
+  options: PullRequestContentOptions,
+): Promise<PullRequestContent> {
+  return provider.generatePullRequestContent(diff, options);
 }
 
 interface ActionItem extends vscode.QuickPickItem {
   action: "accept" | "regenerate" | "edit" | "cancel";
+}
+
+interface PullRequestActionItem extends vscode.QuickPickItem {
+  action:
+    | "accept"
+    | "regenerate"
+    | "copyTitle"
+    | "copyBody"
+    | "openCreate"
+    | "cancel";
 }
 
 async function pickAction(message: string): Promise<ActionItem["action"]> {
@@ -106,6 +236,84 @@ async function editMessage(current: string): Promise<string | undefined> {
   });
 }
 
+function formatPullRequestContent(content: PullRequestContent): string {
+  return `${content.title.trim()}\n\n${content.body.trim()}`.trim();
+}
+
+async function copyPullRequestContent(
+  content: PullRequestContent,
+): Promise<void> {
+  await vscode.env.clipboard.writeText(formatPullRequestContent(content));
+  vscode.window.showInformationMessage(
+    "Nuvo Commit: pull request content copied to clipboard.",
+  );
+}
+
+async function pickPullRequestAction(
+  content: PullRequestContent,
+): Promise<PullRequestActionItem["action"]> {
+  const items: PullRequestActionItem[] = [
+    {
+      label: "$(check) Accept",
+      action: "accept",
+      description: "Copy generated title and body",
+    },
+    { label: "$(sync) Regenerate", action: "regenerate" },
+    { label: "$(copy) Copy Title", action: "copyTitle" },
+    { label: "$(copy) Copy Body", action: "copyBody" },
+    {
+      label: "$(git-pull-request-create) Open GitHub PR Create",
+      action: "openCreate",
+    },
+    { label: "$(close) Cancel", action: "cancel" },
+  ];
+  const picked = await vscode.window.showQuickPick(items, {
+    placeHolder: content.title,
+    ignoreFocusOut: true,
+  });
+  return picked?.action ?? "cancel";
+}
+
+export async function openGitHubPullRequestCreate(
+  cwd: string,
+  compareBranch: string,
+): Promise<boolean> {
+  const githubPrExtension = vscode.extensions.getExtension(
+    "GitHub.vscode-pull-request-github",
+  );
+
+  if (!githubPrExtension) {
+    vscode.window.showWarningMessage(
+      "Nuvo Commit: GitHub Pull Requests extension is not installed. Paste the copied content manually.",
+    );
+    return false;
+  }
+
+  try {
+    await vscode.commands.executeCommand("pr.create", {
+      repoPath: cwd,
+      compareBranch,
+    });
+    return true;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    vscode.window.showErrorMessage(
+      `Nuvo Commit: failed to open GitHub PR create view: ${msg}`,
+    );
+    return false;
+  }
+}
+
+export function buildGitCommitArgs(message: string): string[] {
+  const normalized = message.replace(/\r\n/g, "\n").trim();
+  const [header = "", ...bodyLines] = normalized.split("\n");
+  const body = bodyLines.join("\n").trim();
+
+  return body.length > 0
+    ? ["commit", "-m", header.trim(), "-m", body]
+    : ["commit", "-m", header.trim()];
+}
+
 async function applyMessage(
   message: string,
   cwd: string,
@@ -113,8 +321,10 @@ async function applyMessage(
 ): Promise<void> {
   if (autoCommit) {
     try {
-      await execFileAsync("git", ["commit", "-m", message], { cwd });
-      vscode.window.showInformationMessage(`Committed: ${message}`);
+      await execFileAsync("git", buildGitCommitArgs(message), { cwd });
+      vscode.window.showInformationMessage(
+        `Committed: ${message.split(/\r?\n/)[0]}`,
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       vscode.window.showErrorMessage(`git commit failed: ${msg}`);
@@ -198,10 +408,18 @@ async function runCommand(): Promise<void> {
   const optimized = optimizeDiff(staged.diff, settings.maxDiffChars);
   if (optimized.includedFiles.length === 0) {
     vscode.window.showWarningMessage(
-      `Nuvo Commit: all ${useWorkingDir ? "unstaged" : "staged"} files are ignored (lock/generated/binary).`,
+      `Nuvo Commit: all ${useWorkingDir ? "unstaged" : "staged"} files are ignored (lock/generated).`,
     );
     return;
   }
+
+  const commitOptions: CommitMessageOptions = {
+    includeBody: settings.includeBody,
+    files: optimized.includedFiles,
+    skippedFiles: optimized.skippedFiles,
+    truncated: optimized.truncated,
+    truncatedFiles: optimized.truncatedFiles,
+  };
 
   let message: string;
   try {
@@ -211,7 +429,7 @@ async function runCommand(): Promise<void> {
         title: `Nuvo Commit: generating with ${settings.model}…`,
         cancellable: false,
       },
-      () => generateOnce(provider, optimized.diff),
+      () => generateOnce(provider, optimized.diff, commitOptions),
     );
   } catch (err) {
     const msg = err instanceof ProviderError ? err.message : String(err);
@@ -240,11 +458,10 @@ async function runCommand(): Promise<void> {
               title: `Nuvo Commit: regenerating with ${settings.model}…`,
               cancellable: false,
             },
-            () => generateOnce(provider, optimized.diff),
+            () => generateOnce(provider, optimized.diff, commitOptions),
           );
         } catch (err) {
-          const msg =
-            err instanceof ProviderError ? err.message : String(err);
+          const msg = err instanceof ProviderError ? err.message : String(err);
           vscode.window.showErrorMessage(`Nuvo Commit: ${msg}`);
           return;
         }
@@ -256,6 +473,169 @@ async function runCommand(): Promise<void> {
         }
         break;
       }
+      case "cancel":
+        return;
+    }
+  }
+}
+
+export function orderBaseBranches(
+  branches: string[],
+  defaultBranch?: string,
+): string[] {
+  if (!defaultBranch || !branches.includes(defaultBranch)) return branches;
+  return [defaultBranch, ...branches.filter((b) => b !== defaultBranch)];
+}
+
+/** Asks for the PR target; the resolved default (setting → origin/HEAD → main → master) is listed first. */
+async function pickPullRequestBaseBranch(
+  cwd: string,
+  configured: string,
+): Promise<string | undefined> {
+  const current = await getCurrentBranch(cwd);
+  const defaultBranch = await resolvePullRequestBaseBranch(
+    cwd,
+    configured,
+  ).catch(() => undefined);
+  const branches = orderBaseBranches(
+    await listBaseBranchCandidates(cwd, current),
+    defaultBranch,
+  );
+  if (branches.length === 0) {
+    throw new GitError("No branches to compare against");
+  }
+
+  const picked = await vscode.window.showQuickPick(
+    branches.map((name) => ({
+      label: name,
+      description: name === defaultBranch ? "default" : undefined,
+    })),
+    { placeHolder: `Target branch for ${current}` },
+  );
+  return picked?.label;
+}
+
+async function runPullRequestContentCommand(): Promise<void> {
+  const cwd = getRepoRoot();
+  if (!cwd) {
+    vscode.window.showErrorMessage("Nuvo Commit: open a folder first.");
+    return;
+  }
+
+  const settings = readSettings();
+
+  let provider: Provider;
+  try {
+    provider = await buildProvider(settings);
+  } catch (err) {
+    const msg = err instanceof ProviderError ? err.message : String(err);
+    vscode.window.showErrorMessage(`Nuvo Commit: ${msg}`);
+    return;
+  }
+
+  let pullRequestDiff;
+  try {
+    const baseBranch = await pickPullRequestBaseBranch(
+      cwd,
+      settings.pullRequestBaseBranch,
+    );
+    if (!baseBranch) return;
+    pullRequestDiff = await getPullRequestDiff(
+      cwd,
+      baseBranch,
+      settings.pullRequestIncludeCommitList,
+    );
+  } catch (err) {
+    const msg = err instanceof GitError ? err.message : String(err);
+    vscode.window.showErrorMessage(`Nuvo Commit: ${msg}`);
+    return;
+  }
+
+  if (pullRequestDiff.files.length === 0) {
+    vscode.window.showWarningMessage(
+      `Nuvo Commit: no branch changes detected against ${pullRequestDiff.baseBranch}.`,
+    );
+    return;
+  }
+
+  const optimized = optimizeDiff(pullRequestDiff.diff, settings.maxDiffChars);
+  if (optimized.includedFiles.length === 0) {
+    vscode.window.showWarningMessage(
+      "Nuvo Commit: all pull request files are ignored (lock/generated).",
+    );
+    return;
+  }
+
+  const promptOptions: PullRequestContentOptions = {
+    baseBranch: pullRequestDiff.baseBranch,
+    currentBranch: pullRequestDiff.currentBranch,
+    commits: pullRequestDiff.commits,
+    includeCommitList: settings.pullRequestIncludeCommitList,
+  };
+
+  let content: PullRequestContent;
+  try {
+    content = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Nuvo Commit: generating pull request content with ${settings.model}…`,
+        cancellable: false,
+      },
+      () =>
+        generatePullRequestContentOnce(provider, optimized.diff, promptOptions),
+    );
+  } catch (err) {
+    const msg = err instanceof ProviderError ? err.message : String(err);
+    vscode.window.showErrorMessage(`Nuvo Commit: ${msg}`);
+    return;
+  }
+
+  while (true) {
+    const action = await pickPullRequestAction(content);
+    switch (action) {
+      case "accept":
+        await copyPullRequestContent(content);
+        if (settings.pullRequestOpenCreateView) {
+          await openGitHubPullRequestCreate(cwd, pullRequestDiff.currentBranch);
+        }
+        return;
+      case "regenerate":
+        try {
+          content = await vscode.window.withProgress(
+            {
+              location: vscode.ProgressLocation.Notification,
+              title: `Nuvo Commit: regenerating pull request content with ${settings.model}…`,
+              cancellable: false,
+            },
+            () =>
+              generatePullRequestContentOnce(
+                provider,
+                optimized.diff,
+                promptOptions,
+              ),
+          );
+        } catch (err) {
+          const msg = err instanceof ProviderError ? err.message : String(err);
+          vscode.window.showErrorMessage(`Nuvo Commit: ${msg}`);
+          return;
+        }
+        break;
+      case "copyTitle":
+        await vscode.env.clipboard.writeText(content.title);
+        vscode.window.showInformationMessage(
+          "Nuvo Commit: pull request title copied to clipboard.",
+        );
+        break;
+      case "copyBody":
+        await vscode.env.clipboard.writeText(content.body);
+        vscode.window.showInformationMessage(
+          "Nuvo Commit: pull request body copied to clipboard.",
+        );
+        break;
+      case "openCreate":
+        await copyPullRequestContent(content);
+        await openGitHubPullRequestCreate(cwd, pullRequestDiff.currentBranch);
+        return;
       case "cancel":
         return;
     }
@@ -277,7 +657,14 @@ async function selectModel(): Promise<void> {
   // Get available models from provider
   let models: string[] = [];
   if (provider.listModels) {
-    models = await provider.listModels();
+    const listModels = provider.listModels.bind(provider);
+    models = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Window,
+        title: "Nuvo Commit: Loading models…",
+      },
+      listModels,
+    );
   }
 
   // Add custom input option
@@ -318,31 +705,251 @@ async function selectModel(): Promise<void> {
     selectedModel = picked.label;
   }
 
-  // Save to settings
-  const cfg = vscode.workspace.getConfiguration("nuvoCommit");
-  await cfg.update("model", selectedModel, vscode.ConfigurationTarget.Global);
+  await updateProviderModel(settings.provider, selectedModel);
   vscode.window.showInformationMessage(`Model set to: ${selectedModel}`);
+}
+
+export async function updateProviderModel(
+  provider: string,
+  model: string,
+): Promise<void> {
+  const cfg = vscode.workspace.getConfiguration("nuvoCommit");
+  await cfg.update(
+    getProviderSettingKey(provider, "model"),
+    model,
+    vscode.ConfigurationTarget.Global,
+  );
+}
+
+export async function updateProviderEndpoint(
+  provider: string,
+  endpoint: string,
+): Promise<void> {
+  const cfg = vscode.workspace.getConfiguration("nuvoCommit");
+  await cfg.update(
+    getProviderSettingKey(provider, "endpoint"),
+    endpoint,
+    vscode.ConfigurationTarget.Global,
+  );
+}
+
+export async function updateActiveProvider(provider: string): Promise<void> {
+  const cfg = vscode.workspace.getConfiguration("nuvoCommit");
+  await cfg.update("provider", provider, vscode.ConfigurationTarget.Global);
+}
+
+interface ProviderItem extends vscode.QuickPickItem {
+  provider: "ollama" | "openai" | "anthropic";
+}
+
+interface ApiKeyProviderItem extends vscode.QuickPickItem {
+  provider: "openai" | "anthropic";
+}
+
+interface SettingsActionItem extends vscode.QuickPickItem {
+  action: "provider" | "model" | "endpoint" | "apiKey";
+}
+
+function providerLabel(provider: string): string {
+  switch (provider) {
+    case "ollama":
+      return "Ollama";
+    case "openai":
+      return "OpenAI";
+    case "anthropic":
+      return "Anthropic";
+    default:
+      return provider;
+  }
+}
+
+async function pickProvider(
+  currentProvider: string,
+): Promise<ProviderItem["provider"] | undefined> {
+  const picked = await vscode.window.showQuickPick<ProviderItem>(
+    [
+      {
+        label: "Ollama",
+        description:
+          currentProvider === "ollama" ? "Current provider" : undefined,
+        provider: "ollama",
+      },
+      {
+        label: "OpenAI",
+        description:
+          currentProvider === "openai" ? "Current provider" : undefined,
+        provider: "openai",
+      },
+      {
+        label: "Anthropic",
+        description:
+          currentProvider === "anthropic" ? "Current provider" : undefined,
+        provider: "anthropic",
+      },
+    ],
+    {
+      placeHolder: "Select AI provider",
+      ignoreFocusOut: true,
+    },
+  );
+
+  return picked?.provider;
+}
+
+function buildSettingsActionItems(settings: Settings): SettingsActionItem[] {
+  const items: SettingsActionItem[] = [
+    {
+      label: "$(server-environment) Provider",
+      description: providerLabel(settings.provider),
+      action: "provider",
+    },
+    {
+      label: "$(symbol-string) Model",
+      description: settings.model,
+      action: "model",
+    },
+    {
+      label: "$(link) Endpoint",
+      description: settings.endpoint || "Default provider endpoint",
+      action: "endpoint",
+    },
+  ];
+
+  if (requiresApiKey(settings.provider)) {
+    items.push({
+      label: "$(key) API Key",
+      description: `Set or clear ${providerLabel(settings.provider)} key`,
+      action: "apiKey",
+    });
+  }
+
+  return items;
+}
+
+async function configureProviderModel(settings: Settings): Promise<void> {
+  const input = await vscode.window.showInputBox({
+    value: settings.model,
+    prompt: `Enter ${providerLabel(settings.provider)} model`,
+    ignoreFocusOut: true,
+    validateInput: (value) =>
+      value.trim().length === 0 ? "Model cannot be empty" : null,
+  });
+  if (input === undefined) return;
+
+  await updateProviderModel(settings.provider, input.trim());
+  vscode.window.showInformationMessage(
+    `Nuvo Commit: ${providerLabel(settings.provider)} model updated.`,
+  );
+}
+
+async function configureProviderEndpoint(settings: Settings): Promise<void> {
+  const input = await vscode.window.showInputBox({
+    value: settings.endpoint,
+    prompt: `Enter ${providerLabel(settings.provider)} endpoint`,
+    placeHolder:
+      settings.provider === "ollama"
+        ? "http://localhost:11434/api/generate"
+        : "Leave empty to use provider default",
+    ignoreFocusOut: true,
+  });
+  if (input === undefined) return;
+
+  await updateProviderEndpoint(settings.provider, input.trim());
+  vscode.window.showInformationMessage(
+    `Nuvo Commit: ${providerLabel(settings.provider)} endpoint updated.`,
+  );
+}
+
+export async function configureProviderSettings(): Promise<void> {
+  const settings = readSettings();
+  const picked = await vscode.window.showQuickPick(
+    buildSettingsActionItems(settings),
+    {
+      placeHolder: `Configure ${providerLabel(settings.provider)}`,
+      ignoreFocusOut: true,
+    },
+  );
+  if (!picked) return;
+
+  switch (picked.action) {
+    case "provider": {
+      const provider = await pickProvider(settings.provider);
+      if (!provider) return;
+      await updateActiveProvider(provider);
+      vscode.window.showInformationMessage(
+        `Nuvo Commit: provider set to ${providerLabel(provider)}.`,
+      );
+      return;
+    }
+    case "model":
+      await configureProviderModel(settings);
+      return;
+    case "endpoint":
+      await configureProviderEndpoint(settings);
+      return;
+    case "apiKey":
+      await setApiKey();
+      return;
+  }
+}
+
+async function pickApiKeyProvider(
+  activeProvider: string,
+): Promise<"openai" | "anthropic" | undefined> {
+  if (activeProvider === "openai" || activeProvider === "anthropic") {
+    return activeProvider;
+  }
+
+  const picked = await vscode.window.showQuickPick<ApiKeyProviderItem>(
+    [
+      {
+        label: "OpenAI",
+        description: "Save an OpenAI API key",
+        provider: "openai",
+      },
+      {
+        label: "Anthropic",
+        description: "Save an Anthropic API key",
+        provider: "anthropic",
+      },
+    ],
+    {
+      placeHolder: "Select cloud provider for API key",
+      ignoreFocusOut: true,
+    },
+  );
+
+  return picked?.provider;
 }
 
 async function setApiKey(): Promise<void> {
   if (!secretStorage) return;
 
+  const activeProvider = readSettings().provider;
+  const provider = await pickApiKeyProvider(activeProvider);
+  if (!provider) return;
+
   const input = await vscode.window.showInputBox({
-    prompt: "Enter the API key for your cloud provider (leave empty to clear).",
+    prompt: `Enter the API key for ${provider} (leave empty to clear).`,
     password: true,
     ignoreFocusOut: true,
   });
   if (input === undefined) return; // cancelled
 
   const trimmed = input.trim();
+  const secretKey = getApiKeySecret(provider);
   if (trimmed.length === 0) {
-    await secretStorage.delete(API_KEY_SECRET);
-    vscode.window.showInformationMessage("Nuvo Commit: API key cleared.");
+    await secretStorage.delete(secretKey);
+    vscode.window.showInformationMessage(
+      `Nuvo Commit: ${provider} API key cleared.`,
+    );
     return;
   }
 
-  await secretStorage.store(API_KEY_SECRET, trimmed);
-  vscode.window.showInformationMessage("Nuvo Commit: API key saved securely.");
+  await secretStorage.store(secretKey, trimmed);
+  vscode.window.showInformationMessage(
+    `Nuvo Commit: ${provider} API key saved securely.`,
+  );
 }
 
 /**
@@ -353,13 +960,21 @@ async function migrateApiKey(): Promise<void> {
   if (!secretStorage) return;
 
   const cfg = vscode.workspace.getConfiguration("nuvoCommit");
+  const provider = cfg.get<string>("provider", "ollama");
+  const targetSecret = requiresApiKey(provider)
+    ? getApiKeySecret(provider)
+    : LEGACY_API_KEY_SECRET;
   const legacy = cfg.get<string>("apiKey", "");
-  if (!legacy || legacy.trim().length === 0) return;
+  const legacySecret = await secretStorage.get(LEGACY_API_KEY_SECRET);
+  const keyToMigrate = legacy.trim() || legacySecret?.trim();
+  if (!keyToMigrate) return;
 
-  const existing = await secretStorage.get(API_KEY_SECRET);
+  const existing = await secretStorage.get(targetSecret);
   if (!existing) {
-    await secretStorage.store(API_KEY_SECRET, legacy.trim());
+    await secretStorage.store(targetSecret, keyToMigrate);
   }
+
+  if (!legacy || legacy.trim().length === 0) return;
 
   // Clear the plaintext setting from every scope it might be defined in.
   for (const target of [
@@ -391,15 +1006,39 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.commands.registerCommand("nuvoCommit.generate", runCommand),
-    vscode.commands.registerCommand("nuvoCommit.settings", () => {
-      vscode.commands.executeCommand(
-        "workbench.action.openSettings",
-        "nuvoCommit",
-      );
-    }),
+    vscode.commands.registerCommand(
+      "nuvoCommit.generatePullRequestContent",
+      runPullRequestContentCommand,
+    ),
+    vscode.commands.registerCommand(
+      "nuvoCommit.settings",
+      configureProviderSettings,
+    ),
     vscode.commands.registerCommand("nuvoCommit.selectModel", selectModel),
     vscode.commands.registerCommand("nuvoCommit.setApiKey", setApiKey),
   );
+
+  // Always-visible provider/model; click opens the settings picker (Provider is its first item).
+  const status = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Right,
+  );
+  status.command = "nuvoCommit.settings";
+  status.tooltip = "Nuvo Commit: switch provider or model";
+  const refreshStatus = () => {
+    status.text = statusBarText(readSettings());
+    status.show();
+  };
+  refreshStatus();
+  context.subscriptions.push(
+    status,
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration("nuvoCommit")) refreshStatus();
+    }),
+  );
+}
+
+export function statusBarText(settings: Settings): string {
+  return `$(sparkle) ${providerLabel(settings.provider)}: ${settings.model}`;
 }
 
 export function deactivate(): void {}

@@ -4,6 +4,9 @@ module.exports = {
     showInformationMessage: jest.fn(),
     showErrorMessage: jest.fn(),
     showWarningMessage: jest.fn(),
+    showQuickPick: jest.fn(),
+    showInputBox: jest.fn(),
+    withProgress: jest.fn((_options, task) => task()),
     createOutputChannel: jest.fn(() => ({
       appendLine: jest.fn(),
       show: jest.fn(),
@@ -13,11 +16,13 @@ module.exports = {
   workspace: {
     getConfiguration: jest.fn(() => ({
       get: jest.fn((key, defaultValue) => defaultValue),
+      inspect: jest.fn(() => undefined),
+      update: jest.fn(),
     })),
     workspaceFolders: [
       {
-        uri: { fsPath: '/test/workspace' },
-        name: 'test-workspace',
+        uri: { fsPath: "/test/workspace" },
+        name: "test-workspace",
         index: 0,
       },
     ],
@@ -28,6 +33,14 @@ module.exports = {
   commands: {
     registerCommand: jest.fn(),
     executeCommand: jest.fn(),
+  },
+  ConfigurationTarget: {
+    Global: 1,
+    Workspace: 2,
+    WorkspaceFolder: 3,
+  },
+  extensions: {
+    getExtension: jest.fn(),
   },
   env: {
     clipboard: {
