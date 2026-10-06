@@ -33,6 +33,7 @@ import {
   extractTicketId,
   TicketIdMode,
 } from "./utils/ticketId";
+import { applyMessageStyle, MessageStyle } from "./utils/messageStyle";
 
 const execFileAsync = promisify(execFile);
 
@@ -74,6 +75,7 @@ interface Settings {
   ticketId: TicketIdMode;
   ticketPattern: string;
   suggestions: number;
+  style: MessageStyle;
   pullRequestBaseBranch: string;
   pullRequestOpenCreateView: boolean;
   pullRequestIncludeCommitList: boolean;
@@ -162,6 +164,7 @@ export function readSettings(): Settings {
     ticketId: cfg.get<TicketIdMode>("ticketId", "off"),
     ticketPattern: cfg.get<string>("ticketPattern", DEFAULT_TICKET_PATTERN),
     suggestions: Math.min(Math.max(cfg.get<number>("suggestions", 1), 1), 5),
+    style: cfg.get<MessageStyle>("style", "conventional"),
     pullRequestBaseBranch: cfg.get<string>("pullRequestBaseBranch", ""),
     pullRequestOpenCreateView: cfg.get<boolean>(
       "pullRequestOpenCreateView",
@@ -524,7 +527,13 @@ async function runCommand(): Promise<void> {
             commitOptions,
             settings.suggestions,
           )
-        ).map((m) => addTicketId(m, ticket, settings.ticketId)),
+        ).map((m) =>
+          // Ticket first: its prefix mode expects a Conventional header.
+          applyMessageStyle(
+            addTicketId(m, ticket, settings.ticketId),
+            settings.style,
+          ),
+        ),
     );
 
   let messages: string[];

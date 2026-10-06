@@ -32,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `nuvoCommit.suggestions` setting: generate up to 5 commit messages at once and
   pick one from a list. Each suggestion takes a different angle (user-facing
   effect, changed code, shorter) and duplicates are dropped. Defaults to `1`.
+- `nuvoCommit.style` setting: `conventional` (default), `gitmoji`
+  (`✨ auth: add login`, with 💥 for breaking changes) or `plain` (`Add login`).
 
 ### Changed
 

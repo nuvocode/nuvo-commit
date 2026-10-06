@@ -100,6 +100,7 @@ Settings (`Cmd+,`) under **Nuvo Commit**:
 | `nuvoCommit.autoCommit`         | `false`              | Run `git commit` automatically after accepting.                                  |
 | `nuvoCommit.maxDiffChars`       | `12000`              | Maximum diff characters sent to the model; larger diffs are truncated.           |
 | `nuvoCommit.suggestions`        | `1`                  | Number of messages to generate (1–5). More than one shows a list.                |
+| `nuvoCommit.style`              | `conventional`       | Header format: `conventional`, `gitmoji` or `plain`.                             |
 | `nuvoCommit.language`           | `English`            | Language of generated messages (e.g. `Turkish`). Types like `feat` stay English. |
 | `nuvoCommit.ticketId`           | `off`                | Add the branch's ticket ID: `off`, `footer` or `prefix`.                         |
 | `nuvoCommit.ticketPattern`      | `[A-Z][A-Z0-9]+-\d+` | Regular expression that finds the ticket ID in the branch name.                  |

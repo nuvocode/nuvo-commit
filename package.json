@@ -26,7 +26,8 @@
     "conventional commits",
     "commit message",
     "pull request",
-    "llm"
+    "llm",
+    "gitmoji"
   ],
   "galleryBanner": {
     "color": "#1e1e2e",
@@ -154,6 +155,22 @@
             "maximum": 5,
             "order": 8,
             "description": "Number of commit messages to generate. With more than one, the suggestions are shown in a list to pick from, even when Auto Accept is on."
+          },
+          "nuvoCommit.style": {
+            "type": "string",
+            "enum": [
+              "conventional",
+              "gitmoji",
+              "plain"
+            ],
+            "enumDescriptions": [
+              "Conventional Commits, e.g. `feat(auth): add login`.",
+              "gitmoji, e.g. `✨ auth: add login`.",
+              "No type prefix, e.g. `Add login`."
+            ],
+            "default": "conventional",
+            "order": 9,
+            "description": "Format of the commit message header."
           }
         }
       },
