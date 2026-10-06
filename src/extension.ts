@@ -24,6 +24,8 @@ import { CommitMessageOptions } from "./commitMessage";
 import { PullRequestContent, PullRequestContentOptions } from "./pullRequest";
 import { buildProviderConfig, requiresApiKey } from "./providers/config";
 import { optimizeDiff } from "./utils/optimizeDiff";
+import { SAMPLE_DIFF, setupFixes } from "./setupCheck";
+import { DEFAULT_SUBJECT } from "./utils/sanitize";
 
 const execFileAsync = promisify(execFile);
 
@@ -981,6 +983,52 @@ async function setApiKey(): Promise<void> {
   );
 }
 
+/** Sends a tiny diff through the active provider and offers fixes on failure. */
+async function checkSetup(): Promise<void> {
+  const settings = readSettings();
+  const label = providerLabel(settings.provider);
+
+  try {
+    const message = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Nuvo Commit: testing ${label} (${settings.model})…`,
+      },
+      async () =>
+        (await buildProvider(settings)).generateCommitMessage(SAMPLE_DIFF),
+    );
+    if (message.endsWith(DEFAULT_SUBJECT)) {
+      throw new ProviderError(
+        `${settings.model} returned an empty response. Choose another model.`,
+      );
+    }
+    await vscode.commands.executeCommand(
+      "setContext",
+      "nuvoCommit.setupVerified",
+      true,
+    );
+    vscode.window.showInformationMessage(
+      `Nuvo Commit: ${label} is ready. Sample message: "${message}"`,
+    );
+  } catch (err) {
+    const error = err instanceof ProviderError ? err.message : String(err);
+    const fixes = setupFixes(settings.provider, settings.model, error);
+    const picked = await vscode.window.showErrorMessage(
+      `Nuvo Commit: ${error}`,
+      ...fixes.map((f) => f.title),
+    );
+    const fix = fixes.find((f) => f.title === picked);
+    if (fix?.command) await vscode.commands.executeCommand(fix.command);
+    if (fix?.url) await vscode.env.openExternal(vscode.Uri.parse(fix.url));
+    if (fix?.copy) {
+      await vscode.env.clipboard.writeText(fix.copy);
+      vscode.window.showInformationMessage(
+        `Copied "${fix.copy}". Run it in a terminal, then check again.`,
+      );
+    }
+  }
+}
+
 /**
  * One-time migration: move any plaintext `nuvoCommit.apiKey` setting into
  * SecretStorage and clear it from settings.json so it cannot leak into git.
@@ -1046,6 +1094,7 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.commands.registerCommand("nuvoCommit.selectModel", selectModel),
     vscode.commands.registerCommand("nuvoCommit.setApiKey", setApiKey),
+    vscode.commands.registerCommand("nuvoCommit.checkSetup", checkSetup),
   );
 
   // Always-visible provider/model; click opens the settings picker (Provider is its first item).

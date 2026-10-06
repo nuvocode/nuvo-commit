@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `nuvoCommit.language` setting: generate commit messages and pull request
   content in any language (e.g. `Turkish`). Conventional Commit types and the
   PR's Summary/Testing headings stay in English. Defaults to `English`.
+- **Get Started with Nuvo Commit** walkthrough: choose a provider, check the
+  setup and generate the first message.
+- **Nuvo Commit: Check Setup** sends a small sample diff to the active provider.
+  On failure it offers the fix: install Ollama, copy the `ollama pull` command,
+  pick another model or set the API key.
 
 ### Changed
 
