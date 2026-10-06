@@ -6,4 +6,12 @@ export interface CommitMessageOptions {
   truncatedFiles?: string[];
   /** Output language, e.g. "Turkish". Empty or "English" adds no instruction. */
   language?: string;
+  /** Recent commit headers from the repository, used as style examples. */
+  examples?: string[];
+  /** Allowed commit types, e.g. from commitlint. Defaults to ALLOWED_TYPES. */
+  types?: string[];
+  /** Allowed scopes, e.g. from commitlint. Any scope when unset. */
+  scopes?: string[];
+  /** false when the repository does not use Conventional Commits. */
+  conventional?: boolean;
 }

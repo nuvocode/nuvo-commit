@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Nuvo Commit: Check Setup** sends a small sample diff to the active provider.
   On failure it offers the fix: install Ollama, copy the `ollama pull` command,
   pick another model or set the API key.
+- Commit messages follow the repository's style: the last 15 commit headers are
+  sent as examples. Repositories that do not use Conventional Commits get
+  messages in their own style, without a `chore:` prefix.
+- Allowed types and scopes are read from the commitlint config
+  (`.commitlintrc*`, `commitlint.config.*` or `package.json`) when present.
 
 ### Changed
 

@@ -105,4 +105,31 @@ describe('sanitizeCommitMessage', () => {
     const input = 'feat!: breaking change';
     expect(sanitizeCommitMessage(input)).toBe('feat!: breaking change');
   });
+
+  it('should keep a non-conventional header when the repo does not use them', () => {
+    expect(
+      sanitizeCommitMessage('Add login page.', { conventional: false }),
+    ).toBe('Add login page');
+    expect(
+      sanitizeCommitMessage('', { conventional: false }),
+    ).toBe('update staged changes');
+  });
+
+  it('should truncate non-conventional headers to 72 characters', () => {
+    const result = sanitizeCommitMessage(
+      'Add a much longer description of the login page changes that keeps going and going',
+      { conventional: false },
+    );
+    expect(result.length).toBeLessThanOrEqual(72);
+    expect(result).not.toMatch(/\b(and|with|for|to)$/);
+  });
+
+  it('should accept the repo types and fall back to the first one', () => {
+    expect(sanitizeCommitMessage('deps: bump react', { types: ['deps', 'feat'] })).toBe(
+      'deps: bump react',
+    );
+    expect(sanitizeCommitMessage('bump react', { types: ['deps', 'feat'] })).toBe(
+      'deps: bump react',
+    );
+  });
 });

@@ -20,6 +20,8 @@
 - ☁️ **Cloud Options**: Use OpenAI or Anthropic Claude for higher-quality results
 - 🔑 **Secure Keys**: Cloud API keys are stored in VS Code's encrypted secret storage
 - 🌍 **Any Language**: Write commit messages and PR content in your team's language
+- 🎯 **Matches Your Repo**: Learns the style of your recent commits and follows
+  the allowed types and scopes in your commitlint config
 - 🚀 **Fast**: Quick commit message generation without leaving VS Code
 - ⚙️ **Customizable**: Configure models, endpoints, timeouts, and behavior
 - 📋 **Auto Model Detection**: Automatically list available models from your provider

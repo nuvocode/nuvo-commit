@@ -61,6 +61,17 @@ function splitLines(output: string): string[] {
     .filter(Boolean);
 }
 
+export async function getRecentCommitHeaders(
+  cwd: string,
+  count: number,
+): Promise<string[]> {
+  const out = await tryGit(
+    ["log", `-${count}`, "--no-merges", "--format=%s"],
+    cwd,
+  );
+  return out ? splitLines(out) : [];
+}
+
 export async function getStagedDiff(cwd: string): Promise<StagedDiff> {
   const filesOut = await git(
     ["diff", "--cached", "--name-only", "--diff-filter=ACMRTUXB"],
