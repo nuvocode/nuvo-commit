@@ -59,7 +59,7 @@ export class OpenAIProvider implements Provider {
                 content: prompt,
               },
             ],
-            temperature: 0.2,
+            temperature: options.temperature ?? 0.2,
             max_tokens: options.includeBody ? 300 : 150,
           }),
         },

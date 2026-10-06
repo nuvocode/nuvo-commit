@@ -101,6 +101,14 @@
             "minimum": 1000,
             "order": 4,
             "description": "Maximum diff characters sent to the model. Diffs above this are truncated."
+          },
+          "nuvoCommit.suggestions": {
+            "type": "number",
+            "default": 1,
+            "minimum": 1,
+            "maximum": 5,
+            "order": 5,
+            "description": "Number of commit messages to generate. With more than one, the suggestions are shown in a list to pick from, even when Auto Accept is on."
           }
         }
       },

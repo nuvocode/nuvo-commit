@@ -57,7 +57,7 @@ export class OllamaProvider implements Provider {
             prompt,
             stream: false,
             options: {
-              temperature: 0.2,
+              temperature: options.temperature ?? 0.2,
               top_p: 0.9,
               num_predict: options.includeBody ? 180 : 80,
               stop: options.includeBody

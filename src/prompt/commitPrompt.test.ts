@@ -32,6 +32,13 @@ describe("buildCommitPrompt", () => {
     expect(prompt).toContain("Consider all changed files");
   });
 
+  it("should put the hint right before the answer", () => {
+    const prompt = buildCommitPrompt("diff content", { hint: "Be brief." });
+
+    expect(prompt.endsWith("Be brief.\n\nCommit message:")).toBe(true);
+    expect(buildCommitPrompt("diff content")).not.toContain("Be brief.");
+  });
+
   it("should include balanced truncation context when provided", () => {
     const prompt = buildCommitPrompt("diff content", {
       truncated: true,

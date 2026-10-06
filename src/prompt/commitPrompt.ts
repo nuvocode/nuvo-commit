@@ -113,7 +113,7 @@ Git diff:
 ${diff}
 \`\`\`
 
-Commit message:`;
+${options.hint ? `${options.hint}\n\n` : ""}Commit message:`;
 }
 
 function formatFileList(label: string, files?: string[]): string | undefined {

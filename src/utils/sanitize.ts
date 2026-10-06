@@ -2,7 +2,7 @@ import { ALLOWED_TYPES } from "../prompt/commitPrompt";
 import { CommitMessageOptions } from "../commitMessage";
 
 const HEADER_MAX_LEN = 72;
-const DEFAULT_SUBJECT = "update staged changes";
+export const DEFAULT_SUBJECT = "update staged changes";
 
 export type SanitizeCommitMessageOptions = CommitMessageOptions;
 
