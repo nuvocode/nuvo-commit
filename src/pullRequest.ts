@@ -8,4 +8,5 @@ export interface PullRequestContentOptions {
   currentBranch?: string;
   commits?: string[];
   includeCommitList?: boolean;
+  language?: string;
 }

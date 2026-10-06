@@ -42,4 +42,26 @@ describe("buildCommitPrompt", () => {
     expect(prompt).toContain("Diff context is balanced across files");
     expect(prompt).toContain("Do not focus only on the first file.");
   });
+
+  it("asks for the configured language but keeps types in English", () => {
+    const prompt = buildCommitPrompt("diff", { language: "Turkish" });
+
+    expect(prompt).toContain(
+      "Write the subject and body in Turkish, not English.",
+    );
+    expect(
+      prompt.endsWith(
+        'English, e.g. "fix(api): <subject in Turkish>".\n\nCommit message:',
+      ),
+    ).toBe(true);
+    expect(prompt).toContain("Keep the type (feat, fix");
+  });
+
+  it("adds no language rule for English or empty", () => {
+    for (const language of [undefined, "", "English", " english "]) {
+      expect(buildCommitPrompt("diff", { language })).not.toContain(
+        "LANGUAGE:",
+      );
+    }
+  });
 });

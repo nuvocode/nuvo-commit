@@ -46,5 +46,11 @@ Git diff:
 ${diff}
 \`\`\`
 
-Pull request JSON:`;
+${prLanguageInstruction(options.language)}Pull request JSON:`;
+}
+
+function prLanguageInstruction(language?: string): string {
+  const lang = language?.trim();
+  if (!lang || lang.toLowerCase() === "english") return "";
+  return `LANGUAGE: Write the title and body in ${lang}, not English. Keep the JSON keys and the "Summary" and "Testing" headings in English.\n\n`;
 }

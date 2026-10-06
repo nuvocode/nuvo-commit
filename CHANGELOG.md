@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   models already available in VS Code, such as GitHub Copilot — no API key or
   local server needed. Leave `nuvoCommit.vscode.model` empty to use the first
   available model, or pick one with **Select Model**.
+- `nuvoCommit.language` setting: generate commit messages and pull request
+  content in any language (e.g. `Turkish`). Conventional Commit types and the
+  PR's Summary/Testing headings stay in English. Defaults to `English`.
 
 ### Changed
 

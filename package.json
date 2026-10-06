@@ -101,6 +101,20 @@
             "minimum": 1000,
             "order": 4,
             "description": "Maximum diff characters sent to the model. Diffs above this are truncated."
+          },
+          "nuvoCommit.language": {
+            "type": "string",
+            "default": "English",
+            "order": 5,
+            "examples": [
+              "English",
+              "Turkish",
+              "German",
+              "Spanish",
+              "French",
+              "Japanese"
+            ],
+            "description": "Language for generated commit messages and pull request content. Conventional Commit types (feat, fix, ...) stay in English."
           }
         }
       },

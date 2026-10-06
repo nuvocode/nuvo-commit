@@ -85,6 +85,17 @@ Return a clear validation error for empty requests.
 
 Reply with the commit message only. Nothing else.`;
 
+/**
+ * Rule asking for a non-English message. It goes right before the answer slot:
+ * small local models ignore it when it sits among the English examples.
+ * Types and scopes stay English so the header still parses (utils/sanitize.ts).
+ */
+export function languageInstruction(language?: string): string {
+  const lang = language?.trim();
+  if (!lang || lang.toLowerCase() === "english") return "";
+  return `LANGUAGE: Write the subject and body in ${lang}, not English. Keep the type (${ALLOWED_TYPES.join(", ")}) and scope in English, e.g. "fix(api): <subject in ${lang}>".\n\n`;
+}
+
 export function buildCommitPrompt(
   diff: string,
   options: CommitPromptOptions = {},
@@ -113,7 +124,7 @@ Git diff:
 ${diff}
 \`\`\`
 
-Commit message:`;
+${languageInstruction(options.language)}Commit message:`;
 }
 
 function formatFileList(label: string, files?: string[]): string | undefined {
