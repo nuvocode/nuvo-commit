@@ -948,22 +948,6 @@ function buildSettingsActionItems(settings: Settings): SettingsActionItem[] {
   return items;
 }
 
-async function configureProviderModel(settings: Settings): Promise<void> {
-  const input = await vscode.window.showInputBox({
-    value: settings.model,
-    prompt: `Enter ${providerLabel(settings.provider)} model`,
-    ignoreFocusOut: true,
-    validateInput: (value) =>
-      value.trim().length === 0 ? "Model cannot be empty" : null,
-  });
-  if (input === undefined) return;
-
-  await updateProviderModel(settings.provider, input.trim());
-  vscode.window.showInformationMessage(
-    `Nuvo Commit: ${providerLabel(settings.provider)} model updated.`,
-  );
-}
-
 async function configureProviderEndpoint(settings: Settings): Promise<void> {
   const input = await vscode.window.showInputBox({
     value: settings.endpoint,
@@ -1004,9 +988,7 @@ export async function configureProviderSettings(): Promise<void> {
       return;
     }
     case "model":
-      // VS Code model ids are opaque; pick from the list instead of typing.
-      if (settings.provider === "vscode") await selectModel();
-      else await configureProviderModel(settings);
+      await selectModel();
       return;
     case "endpoint":
       await configureProviderEndpoint(settings);

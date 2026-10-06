@@ -57,6 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   when a response comes back empty, the request is retried once with
   `reasoning_effort: "none"`. If the service rejects that, a clear error
   suggests a non-reasoning model.
+- **Settings → Model** now lists the provider's models (e.g. the installed
+  Ollama models) like **Select Model**, instead of asking for a name.
 
 ## [1.3.0] - 2026-09-25
 

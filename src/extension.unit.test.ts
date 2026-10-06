@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 
 import packageJson from "../package.json";
+import { OllamaProvider, ProviderRegistry } from "./providers";
 import {
   buildGitCommitArgs,
   configureProviderSettings,
@@ -279,24 +280,35 @@ describe("extension helpers", () => {
     ]);
   });
 
-  it("should configure the active provider model from focused settings", async () => {
+  it("should list the provider's models from focused settings", async () => {
     const { update } = mockNuvoConfig({
-      provider: "openai",
-      "openai.model": "gpt-4o-mini",
-      "openai.endpoint": "",
+      provider: "ollama",
+      "ollama.model": "qwen3:4b",
+      "ollama.endpoint": "http://localhost:11434/api/generate",
     });
+    ProviderRegistry.register("ollama", OllamaProvider);
+    const fetchMock = jest
+      .spyOn(global, "fetch")
+      .mockResolvedValue(
+        new Response(JSON.stringify({ models: [{ name: "gemma4:e2b" }] })),
+      );
     const showQuickPick = vscode.window.showQuickPick as jest.Mock;
-    const showInputBox = vscode.window.showInputBox as jest.Mock;
-    showQuickPick.mockResolvedValueOnce({ action: "model" });
-    showInputBox.mockResolvedValueOnce("gpt-4o");
+    showQuickPick
+      .mockResolvedValueOnce({ action: "model" })
+      .mockResolvedValueOnce({ label: "gemma4:e2b" });
 
     await configureProviderSettings();
 
+    const labels = showQuickPick.mock.calls[1][0].map(
+      (item: { label: string }) => item.label,
+    );
+    expect(labels).toContain("gemma4:e2b");
     expect(update).toHaveBeenCalledWith(
-      "openai.model",
-      "gpt-4o",
+      "ollama.model",
+      "gemma4:e2b",
       vscode.ConfigurationTarget.Global,
     );
+    fetchMock.mockRestore();
   });
 
   it("should configure the active provider endpoint from focused settings", async () => {

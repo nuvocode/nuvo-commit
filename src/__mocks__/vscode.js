@@ -109,6 +109,10 @@ module.exports = {
     SourceControl: 2,
     Window: 3,
   },
+  QuickPickItemKind: {
+    Separator: -1,
+    Default: 0,
+  },
   ExtensionMode: {
     Production: 1,
     Development: 2,
