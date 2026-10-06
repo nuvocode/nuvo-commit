@@ -57,6 +57,7 @@ interface Settings {
   autoAccept: boolean;
   includeBody: boolean;
   style: MessageStyle;
+  gitmoji: Record<string, string>;
   pullRequestBaseBranch: string;
   pullRequestOpenCreateView: boolean;
   pullRequestIncludeCommitList: boolean;
@@ -138,6 +139,7 @@ export function readSettings(): Settings {
     autoAccept: cfg.get<boolean>("autoAccept", true),
     includeBody: cfg.get<boolean>("includeBody", false),
     style: cfg.get<MessageStyle>("style", "conventional"),
+    gitmoji: cfg.get<Record<string, string>>("gitmoji", {}),
     pullRequestBaseBranch: cfg.get<string>("pullRequestBaseBranch", ""),
     pullRequestOpenCreateView: cfg.get<boolean>(
       "pullRequestOpenCreateView",
@@ -190,11 +192,12 @@ async function generateOnce(
   provider: Provider,
   diff: string,
   options: CommitMessageOptions,
-  style: MessageStyle,
+  settings: Pick<Settings, "style" | "gitmoji">,
 ): Promise<string> {
   return applyMessageStyle(
     await provider.generateCommitMessage(diff, options),
-    style,
+    settings.style,
+    settings.gitmoji,
   );
 }
 
@@ -437,7 +440,7 @@ async function runCommand(): Promise<void> {
         cancellable: false,
       },
       () =>
-        generateOnce(provider, optimized.diff, commitOptions, settings.style),
+        generateOnce(provider, optimized.diff, commitOptions, settings),
     );
   } catch (err) {
     const msg = err instanceof ProviderError ? err.message : String(err);
@@ -471,7 +474,7 @@ async function runCommand(): Promise<void> {
                 provider,
                 optimized.diff,
                 commitOptions,
-                settings.style,
+                settings,
               ),
           );
         } catch (err) {

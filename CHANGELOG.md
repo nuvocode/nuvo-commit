@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `nuvoCommit.style` setting: `conventional` (default), `gitmoji`
   (`✨ auth: add login`, with 💥 for breaking changes) or `plain` (`Add login`).
+- `nuvoCommit.gitmoji` setting to override the emoji per type (`breaking` for
+  `!` headers).
 
 ## [1.3.0] - 2026-09-25
 

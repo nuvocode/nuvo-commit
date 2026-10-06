@@ -118,6 +118,15 @@
             "default": "conventional",
             "order": 5,
             "description": "Format of the commit message header."
+          },
+          "nuvoCommit.gitmoji": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "order": 6,
+            "markdownDescription": "Emoji per commit type for the `gitmoji` style, e.g. `{ \"feat\": \"🚀\", \"breaking\": \"🔥\" }`. Overrides the gitmoji.dev defaults; `breaking` is used for `!` headers."
           }
         }
       },

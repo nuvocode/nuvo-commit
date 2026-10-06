@@ -19,6 +19,18 @@ describe("applyMessageStyle", () => {
     );
   });
 
+  it("uses custom emoji from the settings", () => {
+    const emojis = { feat: "🚀", breaking: "🔥", wip: "🚧" };
+    expect(applyMessageStyle("feat: add login", "gitmoji", emojis)).toBe(
+      "🚀 add login",
+    );
+    expect(applyMessageStyle("fix!: drop v1", "gitmoji", emojis)).toBe(
+      "🔥 drop v1",
+    );
+    expect(applyMessageStyle("wip: draft", "gitmoji", emojis)).toBe("🚧 draft");
+    expect(applyMessageStyle("fix: typo", "gitmoji", emojis)).toBe("🐛 typo");
+  });
+
   it("drops the type for plain messages", () => {
     expect(applyMessageStyle("feat(auth): add login", "plain")).toBe(
       "Add login",

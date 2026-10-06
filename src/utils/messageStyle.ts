@@ -1,6 +1,6 @@
 export type MessageStyle = "conventional" | "gitmoji" | "plain";
 
-/** gitmoji.dev emoji for each Conventional Commit type. */
+/** gitmoji.dev emoji for each Conventional Commit type; `breaking` marks `!`. */
 export const GITMOJI: Record<string, string> = {
   feat: "✨",
   fix: "🐛",
@@ -13,6 +13,7 @@ export const GITMOJI: Record<string, string> = {
   ci: "👷",
   build: "📦️",
   revert: "⏪️",
+  breaking: "💥",
 };
 
 const HEADER_RE =
@@ -23,10 +24,12 @@ const HEADER_RE =
  * writes Conventional Commits; headers it cannot parse are left unchanged.
  *   gitmoji: `feat(auth): add login` → `✨ auth: add login`
  *   plain:   `feat(auth): add login` → `Add login`
+ * `emojis` overrides or extends GITMOJI per type.
  */
 export function applyMessageStyle(
   message: string,
   style: MessageStyle,
+  emojis: Record<string, string> = {},
 ): string {
   if (style === "conventional") return message;
 
@@ -38,7 +41,8 @@ export function applyMessageStyle(
   if (style === "plain") {
     next = m.subject.charAt(0).toUpperCase() + m.subject.slice(1);
   } else {
-    const emoji = m.breaking ? "💥" : GITMOJI[m.type];
+    const map = { ...GITMOJI, ...emojis };
+    const emoji = map[m.breaking ? "breaking" : m.type];
     if (!emoji) return message;
     next = `${emoji} ${m.scope ? `${m.scope}: ` : ""}${m.subject}`;
   }
