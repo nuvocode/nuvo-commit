@@ -6,6 +6,10 @@
 [![Installs](https://img.shields.io/visual-studio-marketplace/i/nuvocode.nuvo-commit)](https://marketplace.visualstudio.com/items?itemName=nuvocode.nuvo-commit)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+![Generating a commit message and pull request content with Nuvo Commit](images/introduction.gif)
+
+[Watch in full quality](docs/introduction.mp4)
+
 ## Features
 
 - 🤖 **Multi-Provider Support**: Choose from Ollama (local), OpenAI, Anthropic, or
@@ -49,6 +53,16 @@
 2. Open the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`).
 3. Run **Nuvo Commit: Generate Commit Message**.
 4. Review and accept the suggested message.
+
+You can also click the ✨ button in the Source Control title bar.
+
+### Generating pull request content
+
+1. Click the pull request button in the Source Control title bar, or run
+   **Nuvo Commit: Generate Pull Request Content**.
+2. Pick the target branch (the default is listed first).
+3. Accept to copy the title and body, copy them separately, or open GitHub's
+   "create pull request" page.
 
 ### Selecting a model
 

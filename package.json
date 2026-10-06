@@ -21,7 +21,12 @@
     "openai",
     "anthropic",
     "local-first",
-    "multi-provider"
+    "multi-provider",
+    "copilot",
+    "conventional commits",
+    "commit message",
+    "pull request",
+    "llm"
   ],
   "galleryBanner": {
     "color": "#1e1e2e",
