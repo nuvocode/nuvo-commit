@@ -5,6 +5,14 @@ All notable changes to the **Nuvo Commit** extension are documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Ollama thinking models (e.g. qwen3, gemma4) no longer return the generic
+  `chore: update staged changes` message: requests now send `think: false`, so
+  the token budget goes to the answer instead of hidden reasoning.
+
 ## [1.3.0] - 2026-09-25
 
 ### Added

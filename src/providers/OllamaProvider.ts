@@ -56,6 +56,9 @@ export class OllamaProvider implements Provider {
             model: this.opts.model,
             prompt,
             stream: false,
+            // Thinking models (qwen3, gemma4…) would spend num_predict on
+            // reasoning and return an empty response. Ignored by others.
+            think: false,
             options: {
               temperature: 0.2,
               top_p: 0.9,
@@ -114,6 +117,7 @@ export class OllamaProvider implements Provider {
             model: this.opts.model,
             prompt,
             stream: false,
+            think: false,
             options: {
               temperature: 0.2,
               top_p: 0.9,
