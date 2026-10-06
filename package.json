@@ -124,6 +124,28 @@
               "Japanese"
             ],
             "description": "Language for generated commit messages and pull request content. Conventional Commit types (feat, fix, ...) stay in English."
+          },
+          "nuvoCommit.ticketId": {
+            "type": "string",
+            "enum": [
+              "off",
+              "footer",
+              "prefix"
+            ],
+            "enumDescriptions": [
+              "Do not add a ticket ID.",
+              "Add a `Refs: ABC-123` footer.",
+              "Add the ticket ID before the subject, e.g. `feat: ABC-123 add login`."
+            ],
+            "default": "off",
+            "order": 6,
+            "description": "Add the ticket ID found in the branch name (e.g. `feat/ABC-123-login`) to the commit message."
+          },
+          "nuvoCommit.ticketPattern": {
+            "type": "string",
+            "default": "[A-Z][A-Z0-9]+-\\d+",
+            "order": 7,
+            "markdownDescription": "Regular expression that finds the ticket ID in the branch name. The whole match is used. Default matches Jira-style keys like `ABC-123`."
           }
         }
       },

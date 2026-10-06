@@ -27,6 +27,12 @@ import { buildProviderConfig, requiresApiKey } from "./providers/config";
 import { optimizeDiff } from "./utils/optimizeDiff";
 import { SAMPLE_DIFF, setupFixes } from "./setupCheck";
 import { DEFAULT_SUBJECT } from "./utils/sanitize";
+import {
+  addTicketId,
+  DEFAULT_TICKET_PATTERN,
+  extractTicketId,
+  TicketIdMode,
+} from "./utils/ticketId";
 
 const execFileAsync = promisify(execFile);
 
@@ -65,6 +71,8 @@ interface Settings {
   autoAccept: boolean;
   includeBody: boolean;
   language: string;
+  ticketId: TicketIdMode;
+  ticketPattern: string;
   pullRequestBaseBranch: string;
   pullRequestOpenCreateView: boolean;
   pullRequestIncludeCommitList: boolean;
@@ -150,6 +158,8 @@ export function readSettings(): Settings {
     autoAccept: cfg.get<boolean>("autoAccept", true),
     includeBody: cfg.get<boolean>("includeBody", false),
     language: cfg.get<string>("language", "English"),
+    ticketId: cfg.get<TicketIdMode>("ticketId", "off"),
+    ticketPattern: cfg.get<string>("ticketPattern", DEFAULT_TICKET_PATTERN),
     pullRequestBaseBranch: cfg.get<string>("pullRequestBaseBranch", ""),
     pullRequestOpenCreateView: cfg.get<boolean>(
       "pullRequestOpenCreateView",
@@ -437,6 +447,19 @@ async function runCommand(): Promise<void> {
     language: settings.language,
     ...(await readCommitStyle(cwd)),
   };
+  const ticket =
+    settings.ticketId === "off"
+      ? undefined
+      : extractTicketId(
+          await getCurrentBranch(cwd).catch(() => ""),
+          settings.ticketPattern,
+        );
+  const generate = async () =>
+    addTicketId(
+      await generateOnce(provider, optimized.diff, commitOptions),
+      ticket,
+      settings.ticketId,
+    );
 
   let message: string;
   try {
@@ -446,7 +469,7 @@ async function runCommand(): Promise<void> {
         title: `Nuvo Commit: generating with ${settings.model}…`,
         cancellable: false,
       },
-      () => generateOnce(provider, optimized.diff, commitOptions),
+      generate,
     );
   } catch (err) {
     const msg = err instanceof ProviderError ? err.message : String(err);
@@ -475,7 +498,7 @@ async function runCommand(): Promise<void> {
               title: `Nuvo Commit: regenerating with ${settings.model}…`,
               cancellable: false,
             },
-            () => generateOnce(provider, optimized.diff, commitOptions),
+            generate,
           );
         } catch (err) {
           const msg = err instanceof ProviderError ? err.message : String(err);

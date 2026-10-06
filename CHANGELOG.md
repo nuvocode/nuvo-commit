@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   messages in their own style, without a `chore:` prefix.
 - Allowed types and scopes are read from the commitlint config
   (`.commitlintrc*`, `commitlint.config.*` or `package.json`) when present.
+- `nuvoCommit.ticketId` setting: add the ticket ID from the branch name
+  (`feat/ABC-123-login` → `ABC-123`) as a `Refs:` footer or before the subject.
+  Off by default. `nuvoCommit.ticketPattern` sets the regular expression.
 
 ### Changed
 

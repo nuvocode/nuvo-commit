@@ -94,21 +94,23 @@ Run **Nuvo Commit: Settings** to configure only the selected provider's model,
 endpoint, and API key. Provider-specific settings are also available in VS Code
 Settings (`Cmd+,`) under **Nuvo Commit**:
 
-| Setting                         | Default            | Description                                                                      |
-| ------------------------------- | ------------------ | -------------------------------------------------------------------------------- |
-| `nuvoCommit.autoAccept`         | `true`             | Skip the approval dialog and fill the commit message directly.                   |
-| `nuvoCommit.autoCommit`         | `false`            | Run `git commit` automatically after accepting.                                  |
-| `nuvoCommit.maxDiffChars`       | `12000`            | Maximum diff characters sent to the model; larger diffs are truncated.           |
-| `nuvoCommit.language`           | `English`          | Language of generated messages (e.g. `Turkish`). Types like `feat` stay English. |
-| `nuvoCommit.provider`           | `ollama`           | AI provider: `ollama`, `openai`, `anthropic`, or `vscode`.                       |
-| `nuvoCommit.ollama.endpoint`    | Ollama URL         | Ollama API endpoint.                                                             |
-| `nuvoCommit.ollama.model`       | `qwen3:4b`         | Ollama model identifier.                                                         |
-| `nuvoCommit.openai.endpoint`    | `""`               | OpenAI endpoint. Leave empty to use the default OpenAI endpoint.                 |
-| `nuvoCommit.openai.model`       | `gpt-4o-mini`      | OpenAI model identifier.                                                         |
-| `nuvoCommit.anthropic.endpoint` | `""`               | Anthropic endpoint. Leave empty to use the default Anthropic endpoint.           |
-| `nuvoCommit.anthropic.model`    | `claude-haiku-4-5` | Anthropic model identifier.                                                      |
-| `nuvoCommit.vscode.model`       | `""`               | VS Code language model id. Empty uses the first available model.                 |
-| `nuvoCommit.requestTimeoutMs`   | `30000`            | Milliseconds to wait for a provider response before aborting.                    |
+| Setting                         | Default              | Description                                                                      |
+| ------------------------------- | -------------------- | -------------------------------------------------------------------------------- |
+| `nuvoCommit.autoAccept`         | `true`               | Skip the approval dialog and fill the commit message directly.                   |
+| `nuvoCommit.autoCommit`         | `false`              | Run `git commit` automatically after accepting.                                  |
+| `nuvoCommit.maxDiffChars`       | `12000`              | Maximum diff characters sent to the model; larger diffs are truncated.           |
+| `nuvoCommit.language`           | `English`            | Language of generated messages (e.g. `Turkish`). Types like `feat` stay English. |
+| `nuvoCommit.ticketId`           | `off`                | Add the branch's ticket ID: `off`, `footer` or `prefix`.                         |
+| `nuvoCommit.ticketPattern`      | `[A-Z][A-Z0-9]+-\d+` | Regular expression that finds the ticket ID in the branch name.                  |
+| `nuvoCommit.provider`           | `ollama`             | AI provider: `ollama`, `openai`, `anthropic`, or `vscode`.                       |
+| `nuvoCommit.ollama.endpoint`    | Ollama URL           | Ollama API endpoint.                                                             |
+| `nuvoCommit.ollama.model`       | `qwen3:4b`           | Ollama model identifier.                                                         |
+| `nuvoCommit.openai.endpoint`    | `""`                 | OpenAI endpoint. Leave empty to use the default OpenAI endpoint.                 |
+| `nuvoCommit.openai.model`       | `gpt-4o-mini`        | OpenAI model identifier.                                                         |
+| `nuvoCommit.anthropic.endpoint` | `""`                 | Anthropic endpoint. Leave empty to use the default Anthropic endpoint.           |
+| `nuvoCommit.anthropic.model`    | `claude-haiku-4-5`   | Anthropic model identifier.                                                      |
+| `nuvoCommit.vscode.model`       | `""`                 | VS Code language model id. Empty uses the first available model.                 |
+| `nuvoCommit.requestTimeoutMs`   | `30000`              | Milliseconds to wait for a provider response before aborting.                    |
 
 > Deprecated fallback settings `nuvoCommit.apiKey`, `nuvoCommit.endpoint`, and
 > `nuvoCommit.model` are kept for upgrades. New configurations should use the
