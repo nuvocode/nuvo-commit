@@ -118,15 +118,59 @@ Settings (`Cmd+,`) under **Nuvo Commit**:
 }
 ```
 
-**Custom OpenAI-compatible endpoint:**
+### OpenAI-compatible providers
+
+The `openai` provider works with any service that speaks the OpenAI Chat
+Completions API. Set `nuvoCommit.provider` to `openai`, point
+`nuvoCommit.openai.endpoint` at the service's `/chat/completions` URL, and save
+the service's key with **Nuvo Commit: Set API Key** (choose OpenAI). A key is
+always required; for local servers that don't check it, enter any value.
+**Nuvo Commit: Select Model** lists the models the service offers.
+
+**Google Gemini** ([API key](https://aistudio.google.com/apikey)):
+
+```json
+{
+  "nuvoCommit.provider": "openai",
+  "nuvoCommit.openai.endpoint": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+  "nuvoCommit.openai.model": "gemini-3.5-flash-lite"
+}
+```
+
+**OpenRouter** ([API key](https://openrouter.ai/keys)):
+
+```json
+{
+  "nuvoCommit.provider": "openai",
+  "nuvoCommit.openai.endpoint": "https://openrouter.ai/api/v1/chat/completions",
+  "nuvoCommit.openai.model": "openai/gpt-4o-mini"
+}
+```
+
+**Groq** ([API key](https://console.groq.com/keys)):
+
+```json
+{
+  "nuvoCommit.provider": "openai",
+  "nuvoCommit.openai.endpoint": "https://api.groq.com/openai/v1/chat/completions",
+  "nuvoCommit.openai.model": "llama-3.3-70b-versatile"
+}
+```
+
+**LM Studio** (local; start the server in LM Studio's Developer tab):
 
 ```json
 {
   "nuvoCommit.provider": "openai",
   "nuvoCommit.openai.endpoint": "http://localhost:1234/v1/chat/completions",
-  "nuvoCommit.openai.model": "local-model"
+  "nuvoCommit.openai.model": "<model id shown in LM Studio>"
 }
 ```
+
+> **Tip:** Prefer non-reasoning models. Reasoning models (e.g. `gpt-oss`,
+> `qwen3`) can spend the whole response budget on hidden reasoning and return
+> nothing, in which case you get the generic `chore: update staged changes`
+> message.
 
 ## Development
 
