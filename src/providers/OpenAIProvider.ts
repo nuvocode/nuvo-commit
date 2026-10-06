@@ -171,7 +171,30 @@ export class OpenAIProvider implements Provider {
   }
 
   async listModels(): Promise<string[]> {
-    // Common OpenAI models - static list
-    return ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo"];
+    // Works for OpenAI-compatible servers too (LM Studio, OpenRouter, Groq…).
+    const endpoint = this.opts.endpoint || DEFAULT_ENDPOINT;
+    try {
+      const res = await fetchWithTimeout(
+        endpoint.replace(/\/chat\/completions\/?$/, "/models"),
+        { headers: { Authorization: `Bearer ${this.opts.apiKey ?? ""}` } },
+        this.opts.timeoutMs,
+      );
+      if (!res.ok) return FALLBACK_MODELS;
+      const data = (await res.json()) as { data?: Array<{ id: string }> };
+      const ids = (data.data ?? [])
+        .map((m) => m.id)
+        .filter((id) => !NON_CHAT_MODEL.test(id))
+        .sort();
+      return ids.length > 0 ? ids : FALLBACK_MODELS;
+    } catch {
+      return FALLBACK_MODELS;
+    }
   }
 }
+
+// /v1/models also returns embedding, audio and image models; hide those.
+const NON_CHAT_MODEL =
+  /embedding|whisper|tts|dall-e|image|audio|realtime|transcribe|moderation|davinci|babbage/i;
+
+// ponytail: shown only when /v1/models is unreachable (no key, offline).
+const FALLBACK_MODELS = ["gpt-4o-mini", "gpt-4o"];

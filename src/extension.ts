@@ -36,7 +36,7 @@ const PROVIDER_DEFAULTS: Record<string, { model: string; endpoint: string }> = {
     endpoint: "",
   },
   anthropic: {
-    model: "claude-3-5-sonnet-20241022",
+    model: "claude-haiku-4-5",
     endpoint: "",
   },
 };
@@ -657,7 +657,14 @@ async function selectModel(): Promise<void> {
   // Get available models from provider
   let models: string[] = [];
   if (provider.listModels) {
-    models = await provider.listModels();
+    const listModels = provider.listModels.bind(provider);
+    models = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Window,
+        title: "Nuvo Commit: Loading models…",
+      },
+      listModels,
+    );
   }
 
   // Add custom input option

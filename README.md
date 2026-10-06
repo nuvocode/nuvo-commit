@@ -68,19 +68,19 @@ Run **Nuvo Commit: Settings** to configure only the selected provider's model,
 endpoint, and API key. Provider-specific settings are also available in VS Code
 Settings (`Cmd+,`) under **Nuvo Commit**:
 
-| Setting                         | Default                      | Description                                                            |
-| ------------------------------- | ---------------------------- | ---------------------------------------------------------------------- |
-| `nuvoCommit.autoAccept`         | `true`                       | Skip the approval dialog and fill the commit message directly.         |
-| `nuvoCommit.autoCommit`         | `false`                      | Run `git commit` automatically after accepting.                        |
-| `nuvoCommit.maxDiffChars`       | `12000`                      | Maximum diff characters sent to the model; larger diffs are truncated. |
-| `nuvoCommit.provider`           | `ollama`                     | AI provider: `ollama`, `openai`, or `anthropic`.                       |
-| `nuvoCommit.ollama.endpoint`    | Ollama URL                   | Ollama API endpoint.                                                   |
-| `nuvoCommit.ollama.model`       | `qwen3:4b`                   | Ollama model identifier.                                               |
-| `nuvoCommit.openai.endpoint`    | `""`                         | OpenAI endpoint. Leave empty to use the default OpenAI endpoint.       |
-| `nuvoCommit.openai.model`       | `gpt-4o-mini`                | OpenAI model identifier.                                               |
-| `nuvoCommit.anthropic.endpoint` | `""`                         | Anthropic endpoint. Leave empty to use the default Anthropic endpoint. |
-| `nuvoCommit.anthropic.model`    | `claude-3-5-sonnet-20241022` | Anthropic model identifier.                                            |
-| `nuvoCommit.requestTimeoutMs`   | `30000`                      | Milliseconds to wait for a provider response before aborting.          |
+| Setting                         | Default            | Description                                                            |
+| ------------------------------- | ------------------ | ---------------------------------------------------------------------- |
+| `nuvoCommit.autoAccept`         | `true`             | Skip the approval dialog and fill the commit message directly.         |
+| `nuvoCommit.autoCommit`         | `false`            | Run `git commit` automatically after accepting.                        |
+| `nuvoCommit.maxDiffChars`       | `12000`            | Maximum diff characters sent to the model; larger diffs are truncated. |
+| `nuvoCommit.provider`           | `ollama`           | AI provider: `ollama`, `openai`, or `anthropic`.                       |
+| `nuvoCommit.ollama.endpoint`    | Ollama URL         | Ollama API endpoint.                                                   |
+| `nuvoCommit.ollama.model`       | `qwen3:4b`         | Ollama model identifier.                                               |
+| `nuvoCommit.openai.endpoint`    | `""`               | OpenAI endpoint. Leave empty to use the default OpenAI endpoint.       |
+| `nuvoCommit.openai.model`       | `gpt-4o-mini`      | OpenAI model identifier.                                               |
+| `nuvoCommit.anthropic.endpoint` | `""`               | Anthropic endpoint. Leave empty to use the default Anthropic endpoint. |
+| `nuvoCommit.anthropic.model`    | `claude-haiku-4-5` | Anthropic model identifier.                                            |
+| `nuvoCommit.requestTimeoutMs`   | `30000`            | Milliseconds to wait for a provider response before aborting.          |
 
 > Deprecated fallback settings `nuvoCommit.apiKey`, `nuvoCommit.endpoint`, and
 > `nuvoCommit.model` are kept for upgrades. New configurations should use the
@@ -114,7 +114,7 @@ Settings (`Cmd+,`) under **Nuvo Commit**:
 {
   "nuvoCommit.provider": "anthropic",
   "nuvoCommit.anthropic.endpoint": "",
-  "nuvoCommit.anthropic.model": "claude-3-5-sonnet-20241022"
+  "nuvoCommit.anthropic.model": "claude-haiku-4-5"
 }
 ```
 

@@ -222,11 +222,11 @@
           },
           "nuvoCommit.anthropic.model": {
             "type": "string",
-            "default": "claude-3-5-sonnet-20241022",
+            "default": "claude-haiku-4-5",
             "order": 2,
             "examples": [
-              "claude-sonnet-4-20250514",
-              "claude-3-5-sonnet-20241022"
+              "claude-haiku-4-5",
+              "claude-sonnet-5-5"
             ],
             "description": "Anthropic model identifier."
           }
@@ -263,8 +263,8 @@
               "deepseek-coder:6.7b",
               "gpt-4o",
               "gpt-4o-mini",
-              "claude-sonnet-4-20250514",
-              "claude-3-5-sonnet-20241022"
+              "claude-haiku-4-5",
+              "claude-sonnet-5-5"
             ],
             "markdownDeprecationMessage": "**Deprecated:** Use provider-specific model settings such as `nuvoCommit.ollama.model`, `nuvoCommit.openai.model`, or `nuvoCommit.anthropic.model`.",
             "description": "Deprecated fallback model setting."

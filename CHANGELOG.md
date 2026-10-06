@@ -5,6 +5,15 @@ All notable changes to the **Nuvo Commit** extension are documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Select Model** now fetches the live model list from OpenAI (and
+  OpenAI-compatible endpoints) and Anthropic, falling back to a short built-in
+  list when the request fails.
+- The default Anthropic model is now `claude-haiku-4-5`.
+
 ## [1.3.0] - 2026-09-25
 
 ### Added

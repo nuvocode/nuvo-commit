@@ -129,7 +129,7 @@ describe("extension helpers", () => {
     expect(properties["nuvoCommit.anthropic.model"]).toEqual(
       expect.objectContaining({
         type: "string",
-        default: "claude-3-5-sonnet-20241022",
+        default: "claude-haiku-4-5",
       }),
     );
     expect(properties["nuvoCommit.anthropic.endpoint"]).toEqual(
