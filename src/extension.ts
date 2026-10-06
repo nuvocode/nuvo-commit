@@ -76,6 +76,7 @@ interface Settings {
   ticketPattern: string;
   suggestions: number;
   style: MessageStyle;
+  gitmoji: Record<string, string>;
   pullRequestBaseBranch: string;
   pullRequestOpenCreateView: boolean;
   pullRequestIncludeCommitList: boolean;
@@ -165,6 +166,7 @@ export function readSettings(): Settings {
     ticketPattern: cfg.get<string>("ticketPattern", DEFAULT_TICKET_PATTERN),
     suggestions: Math.min(Math.max(cfg.get<number>("suggestions", 1), 1), 5),
     style: cfg.get<MessageStyle>("style", "conventional"),
+    gitmoji: cfg.get<Record<string, string>>("gitmoji", {}),
     pullRequestBaseBranch: cfg.get<string>("pullRequestBaseBranch", ""),
     pullRequestOpenCreateView: cfg.get<boolean>(
       "pullRequestOpenCreateView",
@@ -532,6 +534,7 @@ async function runCommand(): Promise<void> {
           applyMessageStyle(
             addTicketId(m, ticket, settings.ticketId),
             settings.style,
+            settings.gitmoji,
           ),
         ),
     );

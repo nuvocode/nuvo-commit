@@ -34,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   effect, changed code, shorter) and duplicates are dropped. Defaults to `1`.
 - `nuvoCommit.style` setting: `conventional` (default), `gitmoji`
   (`✨ auth: add login`, with 💥 for breaking changes) or `plain` (`Add login`).
+- `nuvoCommit.gitmoji` setting to override the emoji per type (`breaking` for
+  `!` headers).
 
 ### Changed
 
