@@ -5,6 +5,19 @@ All notable changes to the **Nuvo Commit** extension are documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **VS Code provider** (`nuvoCommit.provider: "vscode"`): uses the language
+  models already available in VS Code, such as GitHub Copilot — no API key or
+  local server needed. Leave `nuvoCommit.vscode.model` empty to use the first
+  available model, or pick one with **Select Model**.
+
+### Changed
+
+- Requires VS Code 1.90 or newer (Language Model API).
+
 ## [1.3.0] - 2026-09-25
 
 ### Added

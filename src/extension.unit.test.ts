@@ -408,6 +408,7 @@ describe("settings layout", () => {
       "Ollama",
       "OpenAI",
       "Anthropic",
+      "VS Code",
       "Deprecated",
     ]);
   });
@@ -417,6 +418,16 @@ describe("statusBarText", () => {
   it("shows the active provider and model", () => {
     mockNuvoConfig({ provider: "openai", "openai.model": "gpt-4o" });
     expect(statusBarText(readSettings())).toBe("$(sparkle) OpenAI: gpt-4o");
+  });
+
+  it("shows Auto when the vscode provider has no model", () => {
+    mockNuvoConfig({ provider: "vscode" });
+    expect(statusBarText(readSettings())).toBe("$(sparkle) VS Code: Auto");
+  });
+
+  it("ignores legacy model settings for the vscode provider", () => {
+    mockNuvoConfig({ provider: "vscode", model: "qwen3:4b" });
+    expect(readSettings().model).toBe("");
   });
 });
 

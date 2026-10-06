@@ -6,7 +6,7 @@
   "publisher": "nuvocode",
   "icon": "images/logo.png",
   "engines": {
-    "vscode": "^1.85.0",
+    "vscode": "^1.90.0",
     "node": ">=18"
   },
   "categories": [
@@ -139,12 +139,14 @@
             "enum": [
               "ollama",
               "openai",
-              "anthropic"
+              "anthropic",
+              "vscode"
             ],
             "enumDescriptions": [
               "Ollama - Local AI provider for running models locally",
               "OpenAI - Cloud API provider (requires API key)",
-              "Anthropic - Cloud API provider (requires API key)"
+              "Anthropic - Cloud API provider (requires API key)",
+              "VS Code - Language models already available in VS Code, such as GitHub Copilot (no API key)"
             ],
             "default": "ollama",
             "order": 1,
@@ -233,9 +235,22 @@
         }
       },
       {
+        "id": "nuvoCommit.vscode",
+        "title": "VS Code",
+        "order": 7,
+        "properties": {
+          "nuvoCommit.vscode.model": {
+            "type": "string",
+            "default": "",
+            "order": 1,
+            "description": "VS Code language model id (e.g. from GitHub Copilot). Leave empty to use the first available model. Run 'Nuvo Commit: Select Model' to pick one."
+          }
+        }
+      },
+      {
         "id": "nuvoCommit.deprecated",
         "title": "Deprecated",
-        "order": 7,
+        "order": 8,
         "properties": {
           "nuvoCommit.apiKey": {
             "type": "string",
@@ -289,7 +304,7 @@
   "devDependencies": {
     "@types/jest": "^29.5.12",
     "@types/node": "^20.11.0",
-    "@types/vscode": "^1.85.0",
+    "@types/vscode": "~1.90.0",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
     "@vscode/test-cli": "^0.0.9",
