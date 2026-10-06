@@ -161,6 +161,61 @@ describe("OpenAIProvider", () => {
         provider.generateCommitMessage("diff"),
       ).rejects.toThrow(/No response from OpenAI/);
     });
+
+    it("should retry with reasoning off when a reasoning model returns nothing", async () => {
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              choices: [{ message: { content: "" }, finish_reason: "length" }],
+            }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              choices: [{ message: { content: "feat: add login" } }],
+            }),
+        });
+
+      const provider = new OpenAIProvider({
+        apiKey: mockApiKey,
+        model: "gpt-oss-20b",
+      });
+
+      expect(await provider.generateCommitMessage("diff")).toBe(
+        "feat: add login",
+      );
+      const bodies = (global.fetch as jest.Mock).mock.calls.map(([, init]) =>
+        JSON.parse(init.body),
+      );
+      expect(bodies[0].reasoning_effort).toBeUndefined();
+      expect(bodies[1].reasoning_effort).toBe("none");
+    });
+
+    it("should explain the failure when the retry is rejected", async () => {
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({ choices: [{ message: { content: null } }] }),
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 400,
+          text: () => Promise.resolve("reasoning_effort not supported"),
+        });
+
+      const provider = new OpenAIProvider({
+        apiKey: mockApiKey,
+        model: "gpt-oss-20b",
+      });
+
+      await expect(provider.generateCommitMessage("diff")).rejects.toThrow(
+        /gpt-oss-20b returned an empty response.*non-reasoning model/,
+      );
+    });
   });
 
   describe("listModels", () => {
