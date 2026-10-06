@@ -8,7 +8,10 @@
 
 ## Features
 
-- 🤖 **Multi-Provider Support**: Choose from Ollama (local), OpenAI, or Anthropic
+- 🤖 **Multi-Provider Support**: Choose from Ollama (local), OpenAI, Anthropic, or
+  the models already in VS Code (e.g. GitHub Copilot)
+- 🆓 **No Key Needed with Copilot**: The VS Code provider reuses your Copilot models —
+  no API key, no local server
 - 🔒 **Local-First**: Run entirely on your machine via Ollama — no cloud APIs required
 - ☁️ **Cloud Options**: Use OpenAI or Anthropic Claude for higher-quality results
 - 🔑 **Secure Keys**: Cloud API keys are stored in VS Code's encrypted secret storage
@@ -18,11 +21,14 @@
 
 ## Requirements
 
-- VS Code 1.85.0 or higher
+- VS Code 1.90.0 or higher
 - For **Ollama** (local): [Ollama](https://ollama.ai) installed and running, with a
   model pulled (`ollama pull qwen3:4b`)
 - For **OpenAI** (cloud): an API key from <https://platform.openai.com/api-keys>
 - For **Anthropic** (cloud): an API key from <https://console.anthropic.com/>
+- For **VS Code** (Copilot): GitHub Copilot (or another extension that provides
+  language models) installed and signed in. VS Code asks for permission the first
+  time Nuvo Commit uses a model.
 
 ## Installation
 
@@ -73,13 +79,14 @@ Settings (`Cmd+,`) under **Nuvo Commit**:
 | `nuvoCommit.autoAccept`         | `true`             | Skip the approval dialog and fill the commit message directly.         |
 | `nuvoCommit.autoCommit`         | `false`            | Run `git commit` automatically after accepting.                        |
 | `nuvoCommit.maxDiffChars`       | `12000`            | Maximum diff characters sent to the model; larger diffs are truncated. |
-| `nuvoCommit.provider`           | `ollama`           | AI provider: `ollama`, `openai`, or `anthropic`.                       |
+| `nuvoCommit.provider`           | `ollama`           | AI provider: `ollama`, `openai`, `anthropic`, or `vscode`.             |
 | `nuvoCommit.ollama.endpoint`    | Ollama URL         | Ollama API endpoint.                                                   |
 | `nuvoCommit.ollama.model`       | `qwen3:4b`         | Ollama model identifier.                                               |
 | `nuvoCommit.openai.endpoint`    | `""`               | OpenAI endpoint. Leave empty to use the default OpenAI endpoint.       |
 | `nuvoCommit.openai.model`       | `gpt-4o-mini`      | OpenAI model identifier.                                               |
 | `nuvoCommit.anthropic.endpoint` | `""`               | Anthropic endpoint. Leave empty to use the default Anthropic endpoint. |
 | `nuvoCommit.anthropic.model`    | `claude-haiku-4-5` | Anthropic model identifier.                                            |
+| `nuvoCommit.vscode.model`       | `""`               | VS Code language model id. Empty uses the first available model.       |
 | `nuvoCommit.requestTimeoutMs`   | `30000`            | Milliseconds to wait for a provider response before aborting.          |
 
 > Deprecated fallback settings `nuvoCommit.apiKey`, `nuvoCommit.endpoint`, and
@@ -115,6 +122,15 @@ Settings (`Cmd+,`) under **Nuvo Commit**:
   "nuvoCommit.provider": "anthropic",
   "nuvoCommit.anthropic.endpoint": "",
   "nuvoCommit.anthropic.model": "claude-haiku-4-5"
+}
+```
+
+**VS Code / GitHub Copilot (no API key):**
+
+```json
+{
+  "nuvoCommit.provider": "vscode",
+  "nuvoCommit.vscode.model": ""
 }
 ```
 

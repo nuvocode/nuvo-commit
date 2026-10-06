@@ -7,12 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **VS Code provider** (`nuvoCommit.provider: "vscode"`): uses the language
+  models already available in VS Code, such as GitHub Copilot — no API key or
+  local server needed. Leave `nuvoCommit.vscode.model` empty to use the first
+  available model, or pick one with **Select Model**.
+
 ### Changed
 
 - **Select Model** now fetches the live model list from OpenAI (and
   OpenAI-compatible endpoints) and Anthropic, falling back to a short built-in
   list when the request fails.
 - The default Anthropic model is now `claude-haiku-4-5`.
+- Requires VS Code 1.90 or newer (Language Model API).
 
 ## [1.3.0] - 2026-09-25
 

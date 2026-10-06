@@ -19,6 +19,7 @@ import {
 import { OllamaProvider } from "./providers/OllamaProvider";
 import { OpenAIProvider } from "./providers/OpenAIProvider";
 import { AnthropicProvider } from "./providers/AnthropicProvider";
+import { VSCodeLMProvider } from "./providers/VSCodeLMProvider";
 import { CommitMessageOptions } from "./commitMessage";
 import { PullRequestContent, PullRequestContentOptions } from "./pullRequest";
 import { buildProviderConfig, requiresApiKey } from "./providers/config";
@@ -37,6 +38,11 @@ const PROVIDER_DEFAULTS: Record<string, { model: string; endpoint: string }> = {
   },
   anthropic: {
     model: "claude-haiku-4-5",
+    endpoint: "",
+  },
+  // Empty model = first model VS Code offers.
+  vscode: {
+    model: "",
     endpoint: "",
   },
 };
@@ -114,8 +120,12 @@ export function readSettings(): Settings {
   const cfg = vscode.workspace.getConfiguration("nuvoCommit");
   const provider = cfg.get<string>("provider", "ollama");
   const defaults = getProviderDefaults(provider);
-  const legacyModel = readConfiguredString(cfg, "model");
-  const legacyEndpoint = readConfiguredString(cfg, "endpoint");
+  // Legacy settings predate the vscode provider and hold Ollama/cloud values.
+  const legacy = provider !== "vscode";
+  const legacyModel = legacy ? readConfiguredString(cfg, "model") : undefined;
+  const legacyEndpoint = legacy
+    ? readConfiguredString(cfg, "endpoint")
+    : undefined;
 
   return {
     provider,
@@ -739,7 +749,7 @@ export async function updateActiveProvider(provider: string): Promise<void> {
 }
 
 interface ProviderItem extends vscode.QuickPickItem {
-  provider: "ollama" | "openai" | "anthropic";
+  provider: "ollama" | "openai" | "anthropic" | "vscode";
 }
 
 interface ApiKeyProviderItem extends vscode.QuickPickItem {
@@ -758,6 +768,8 @@ function providerLabel(provider: string): string {
       return "OpenAI";
     case "anthropic":
       return "Anthropic";
+    case "vscode":
+      return "VS Code";
     default:
       return provider;
   }
@@ -786,6 +798,14 @@ async function pickProvider(
           currentProvider === "anthropic" ? "Current provider" : undefined,
         provider: "anthropic",
       },
+      {
+        label: "VS Code (Copilot)",
+        description:
+          currentProvider === "vscode"
+            ? "Current provider"
+            : "No API key needed",
+        provider: "vscode",
+      },
     ],
     {
       placeHolder: "Select AI provider",
@@ -805,15 +825,18 @@ function buildSettingsActionItems(settings: Settings): SettingsActionItem[] {
     },
     {
       label: "$(symbol-string) Model",
-      description: settings.model,
+      description: settings.model || "Auto",
       action: "model",
     },
-    {
+  ];
+
+  if (settings.provider !== "vscode") {
+    items.push({
       label: "$(link) Endpoint",
       description: settings.endpoint || "Default provider endpoint",
       action: "endpoint",
-    },
-  ];
+    });
+  }
 
   if (requiresApiKey(settings.provider)) {
     items.push({
@@ -882,7 +905,9 @@ export async function configureProviderSettings(): Promise<void> {
       return;
     }
     case "model":
-      await configureProviderModel(settings);
+      // VS Code model ids are opaque; pick from the list instead of typing.
+      if (settings.provider === "vscode") await selectModel();
+      else await configureProviderModel(settings);
       return;
     case "endpoint":
       await configureProviderEndpoint(settings);
@@ -1001,6 +1026,7 @@ export function activate(context: vscode.ExtensionContext): void {
   ProviderRegistry.register("ollama", OllamaProvider);
   ProviderRegistry.register("openai", OpenAIProvider);
   ProviderRegistry.register("anthropic", AnthropicProvider);
+  ProviderRegistry.register("vscode", VSCodeLMProvider);
 
   void migrateApiKey();
 
@@ -1038,7 +1064,7 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 export function statusBarText(settings: Settings): string {
-  return `$(sparkle) ${providerLabel(settings.provider)}: ${settings.model}`;
+  return `$(sparkle) ${providerLabel(settings.provider)}: ${settings.model || "Auto"}`;
 }
 
 export function deactivate(): void {}

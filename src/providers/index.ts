@@ -8,5 +8,6 @@ export {
 export { OllamaProvider } from "./OllamaProvider";
 export { OpenAIProvider } from "./OpenAIProvider";
 export { AnthropicProvider } from "./AnthropicProvider";
+export { VSCodeLMProvider } from "./VSCodeLMProvider";
 export { buildProviderConfig, requiresApiKey } from "./config";
 export { fetchWithTimeout, DEFAULT_TIMEOUT_MS } from "./http";
