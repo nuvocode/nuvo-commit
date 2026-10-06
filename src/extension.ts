@@ -55,6 +55,7 @@ interface Settings {
   autoCommit: boolean;
   autoAccept: boolean;
   includeBody: boolean;
+  language: string;
   pullRequestBaseBranch: string;
   pullRequestOpenCreateView: boolean;
   pullRequestIncludeCommitList: boolean;
@@ -135,6 +136,7 @@ export function readSettings(): Settings {
     autoCommit: cfg.get<boolean>("autoCommit", false),
     autoAccept: cfg.get<boolean>("autoAccept", true),
     includeBody: cfg.get<boolean>("includeBody", false),
+    language: cfg.get<string>("language", "English"),
     pullRequestBaseBranch: cfg.get<string>("pullRequestBaseBranch", ""),
     pullRequestOpenCreateView: cfg.get<boolean>(
       "pullRequestOpenCreateView",
@@ -419,6 +421,7 @@ async function runCommand(): Promise<void> {
     skippedFiles: optimized.skippedFiles,
     truncated: optimized.truncated,
     truncatedFiles: optimized.truncatedFiles,
+    language: settings.language,
   };
 
   let message: string;
@@ -571,6 +574,7 @@ async function runPullRequestContentCommand(): Promise<void> {
     currentBranch: pullRequestDiff.currentBranch,
     commits: pullRequestDiff.commits,
     includeCommitList: settings.pullRequestIncludeCommitList,
+    language: settings.language,
   };
 
   let content: PullRequestContent;
