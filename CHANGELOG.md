@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The default Anthropic model is now `claude-haiku-4-5`.
 - Requires VS Code 1.90 or newer (Language Model API).
 
+### Fixed
+
+- Ollama thinking models (e.g. qwen3, gemma4) no longer return the generic
+  `chore: update staged changes` message: requests now send `think: false`, so
+  the token budget goes to the answer instead of hidden reasoning.
+
 ## [1.3.0] - 2026-09-25
 
 ### Added
